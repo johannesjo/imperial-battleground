@@ -82,19 +82,19 @@ function recalcMoves(): void {
 function recalcAttacks(): void {
   if (selectedUnitIds.length === 0) { validAttacks = []; return; }
 
-  // Intersection: only targets every selected unit can attack
-  let result: Position[] | null = null;
+  // Union: any target that at least one selected unit can attack
+  const result: Position[] = [];
   for (const sq of selectedSquares) {
     for (const uid of selectedUnitIds) {
       const targets = getValidAttacks(state, sq, uid);
-      if (result === null) {
-        result = [...targets];
-      } else {
-        result = result.filter(r => targets.some(t => samePos(r, t)));
+      for (const t of targets) {
+        if (!result.some(r => samePos(r, t))) {
+          result.push(t);
+        }
       }
     }
   }
-  validAttacks = result ?? [];
+  validAttacks = result;
 }
 
 function computePreview(): PreviewInfo | null {
