@@ -99,3 +99,53 @@ export function canDeploy(state: GameState, player: Player, target: Position): b
   if (!sq) return false;
   return stackUsed(sq.units) < MAX_STACK_SLOTS;
 }
+
+function canUnitAttack(unit: Unit): boolean {
+  if (unit.hasAttacked) return false;
+  if (unit.type === 'infantry' && unit.hasMoved) return false;
+  if (unit.type === 'artillery' && unit.hasMoved) return false;
+  if (unit.type === 'cavalry' && unit.hasMoved && unit.movedSquares > 1) return false;
+  return true;
+}
+
+function hasEnemyUnits(state: GameState, pos: Position, attackerOwner: Player): boolean {
+  const sq = getSquare(state, pos);
+  if (!sq) return false;
+  return sq.units.some(u => u.owner !== attackerOwner);
+}
+
+/** Returns all valid positions that units at `from` can attack */
+export function getValidAttacks(state: GameState, from: Position): Position[] {
+  const sq = getSquare(state, from);
+  if (!sq) return [];
+
+  const attackers = sq.units.filter(u => canUnitAttack(u));
+  if (attackers.length === 0) return [];
+
+  const owner = attackers[0]!.owner;
+  const targets: Position[] = [];
+
+  const hasAdjacentAttacker = attackers.some(u => u.type === 'infantry' || u.type === 'cavalry');
+  const hasArtillery = attackers.some(u => u.type === 'artillery');
+
+  if (hasAdjacentAttacker) {
+    for (const dir of ORTHOGONAL) {
+      const target: Position = { col: from.col + dir.col, row: from.row + dir.row };
+      if (isInBounds(target) && hasEnemyUnits(state, target, owner)) {
+        targets.push(target);
+      }
+    }
+  }
+
+  if (hasArtillery) {
+    for (let r = 0; r < GRID_ROWS; r++) {
+      if (r === from.row) continue;
+      const target: Position = { col: from.col, row: r };
+      if (hasEnemyUnits(state, target, owner) && !targets.some(t => t.col === target.col && t.row === target.row)) {
+        targets.push(target);
+      }
+    }
+  }
+
+  return targets;
+}
