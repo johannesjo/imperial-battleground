@@ -179,6 +179,8 @@ function drawUnitIcon(ctx: CanvasRenderingContext2D, type: UnitType, cx: number,
 export interface RenderContext {
   canvas: HTMLCanvasElement;
   ctx: CanvasRenderingContext2D;
+  width: number;   // CSS pixel width
+  height: number;  // CSS pixel height
   cellSize: number;
   gridOffsetX: number;
   gridOffsetY: number;
@@ -191,8 +193,11 @@ export interface RenderContext {
 
 export function createRenderContext(canvas: HTMLCanvasElement): RenderContext {
   const ctx = canvas.getContext('2d')!;
-  const w = canvas.width;
-  const h = canvas.height;
+  const dpr = window.devicePixelRatio || 1;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  // Work in CSS pixel space
+  const w = canvas.width / dpr;
+  const h = canvas.height / dpr;
 
   const statusBarHeight = 48;
   const buttonBarHeight = 56;
@@ -217,7 +222,7 @@ export function createRenderContext(canvas: HTMLCanvasElement): RenderContext {
 
   const previewPanelX = gridAreaWidth;
 
-  return { canvas, ctx, cellSize, gridOffsetX, gridOffsetY, reserveHeight, statusBarHeight, buttonBarHeight, previewPanelX, previewPanelWidth };
+  return { canvas, ctx, width: w, height: h, cellSize, gridOffsetX, gridOffsetY, reserveHeight, statusBarHeight, buttonBarHeight, previewPanelX, previewPanelWidth };
 }
 
 export function render(
@@ -232,13 +237,13 @@ export function render(
   attackAnimProgress = 0,
   preview: PreviewInfo | null = null
 ): void {
-  const { ctx, canvas } = rc;
+  const { ctx, width, height } = rc;
 
   ctx.fillStyle = COLORS.bg;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, width, height);
 
   renderStatusBar(rc, state, 2, 0, flipped);
-  renderStatusBar(rc, state, 1, canvas.height - rc.buttonBarHeight - rc.statusBarHeight, flipped);
+  renderStatusBar(rc, state, 1, height - rc.buttonBarHeight - rc.statusBarHeight, flipped);
 
   const topReserveY = rc.gridOffsetY;
   const bottomReserveY = rc.gridOffsetY + rc.reserveHeight + rc.cellSize * GRID_ROWS;
@@ -261,10 +266,10 @@ export function render(
 }
 
 function renderStatusBar(rc: RenderContext, state: GameState, player: Player, y: number, _flipped: boolean): void {
-  const { ctx, canvas } = rc;
+  const { ctx, width } = rc;
   ctx.fillStyle = player === state.currentPlayer ? (player === 1 ? COLORS.p1 : COLORS.p2) : '#333';
   ctx.globalAlpha = player === state.currentPlayer ? 0.15 : 0.05;
-  ctx.fillRect(0, y, canvas.width, rc.statusBarHeight);
+  ctx.fillRect(0, y, width, rc.statusBarHeight);
   ctx.globalAlpha = 1;
 
   ctx.fillStyle = COLORS.text;
@@ -279,7 +284,7 @@ function renderStatusBar(rc: RenderContext, state: GameState, player: Player, y:
   ctx.fillText(`P${player}  ${apDisplay}`, 12, y + rc.statusBarHeight / 2);
 
   ctx.textAlign = 'right';
-  ctx.fillText(`Turn ${state.turnNumber}`, canvas.width - 12, y + rc.statusBarHeight / 2);
+  ctx.fillText(`Turn ${state.turnNumber}`, width - 12, y + rc.statusBarHeight / 2);
 }
 
 function renderReserve(rc: RenderContext, state: GameState, player: Player, y: number, selectedUnitIds: string[] = []): void {
@@ -468,7 +473,7 @@ function renderAttackResult(
   gridTop: number,
   flipped: boolean
 ): void {
-  const { ctx, cellSize, canvas } = rc;
+  const { ctx, cellSize, width } = rc;
 
   // Phase 1 (0-0.3): flash target square
   // Phase 2 (0.1-0.9): show result panel
@@ -513,12 +518,12 @@ function renderAttackResult(
   ctx.globalAlpha = panelAlpha;
 
   // Panel dimensions
-  const panelW = Math.min(280, canvas.width - 32);
+  const panelW = Math.min(280, width - 32);
   const lineH = 22;
   const bonusLines = result.bonuses.length;
   const damageLines = result.unitDamage.length;
   const panelH = 70 + bonusLines * lineH + (damageLines > 0 ? 26 + damageLines * lineH : 0);
-  const panelX = (canvas.width - panelW) / 2;
+  const panelX = (width - panelW) / 2;
 
   // Position panel near target square
   const target = gridCellScreen(rc, result.targetSquare, gridTop, flipped);
@@ -612,12 +617,12 @@ const UNIT_TYPE_LABELS: Record<UnitType, string> = {
 };
 
 function renderPreview(rc: RenderContext, preview: PreviewInfo): void {
-  const { ctx, previewPanelX, previewPanelWidth, statusBarHeight, canvas, buttonBarHeight } = rc;
+  const { ctx, previewPanelX, previewPanelWidth, statusBarHeight, height, buttonBarHeight } = rc;
   const panelPad = 12;
   const panelX = previewPanelX + panelPad;
   const panelW = previewPanelWidth - panelPad * 2;
   const panelTop = statusBarHeight + panelPad;
-  const panelMaxH = canvas.height - statusBarHeight * 2 - buttonBarHeight - panelPad * 2;
+  const panelMaxH = height - statusBarHeight * 2 - buttonBarHeight - panelPad * 2;
 
   const lineH = 20;
   const unitIconSize = 20;
@@ -801,55 +806,58 @@ function renderPreview(rc: RenderContext, preview: PreviewInfo): void {
 }
 
 function renderButtons(rc: RenderContext, _state: GameState): void {
-  const { ctx, canvas, buttonBarHeight } = rc;
-  const y = canvas.height - buttonBarHeight;
-  const btnWidth = canvas.width / 2 - 16;
+  const { ctx, width, height, buttonBarHeight } = rc;
+  const y = height - buttonBarHeight;
   const btnHeight = 40;
   const btnY = y + (buttonBarHeight - btnHeight) / 2;
 
+  // END TURN — main button
+  const endTurnWidth = width - 100;
   ctx.fillStyle = COLORS.button;
-  ctx.fillRect(8, btnY, btnWidth, btnHeight);
+  roundRect(ctx, 8, btnY, endTurnWidth, btnHeight, 6);
+  ctx.fill();
   ctx.fillStyle = COLORS.buttonText;
   ctx.font = '16px monospace';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('END TURN', 8 + btnWidth / 2, btnY + btnHeight / 2);
+  ctx.fillText('END TURN', 8 + endTurnWidth / 2, btnY + btnHeight / 2);
 
-  ctx.fillStyle = COLORS.retreatBtn;
-  ctx.fillRect(canvas.width / 2 + 8, btnY, btnWidth, btnHeight);
-  ctx.fillStyle = COLORS.buttonText;
-  ctx.fillText('RETREAT', canvas.width / 2 + 8 + btnWidth / 2, btnY + btnHeight / 2);
+  // RETREAT — small text on the right
+  ctx.fillStyle = '#666';
+  ctx.font = '11px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('retreat', width - 42, btnY + btnHeight / 2);
 }
 
 export function renderHandoff(rc: RenderContext, player: Player): void {
-  const { ctx, canvas } = rc;
+  const { ctx, width, height } = rc;
   ctx.fillStyle = COLORS.bg;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, width, height);
 
   ctx.fillStyle = COLORS.text;
   ctx.font = '28px monospace';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(`Pass to Player ${player}`, canvas.width / 2, canvas.height / 2 - 30);
+  ctx.fillText(`Pass to Player ${player}`, width / 2, height / 2 - 30);
 
   ctx.font = '18px monospace';
-  ctx.fillText('Tap to continue', canvas.width / 2, canvas.height / 2 + 20);
+  ctx.fillText('Tap to continue', width / 2, height / 2 + 20);
 }
 
 export function renderGameOver(rc: RenderContext, winner: Player): void {
-  const { ctx, canvas } = rc;
+  const { ctx, width, height } = rc;
   ctx.fillStyle = COLORS.bg;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, width, height);
 
   ctx.fillStyle = winner === 1 ? COLORS.p1 : COLORS.p2;
   ctx.font = '32px monospace';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(`Player ${winner} Wins!`, canvas.width / 2, canvas.height / 2 - 20);
+  ctx.fillText(`Player ${winner} Wins!`, width / 2, height / 2 - 20);
 
   ctx.fillStyle = COLORS.text;
   ctx.font = '18px monospace';
-  ctx.fillText('Tap to play again', canvas.width / 2, canvas.height / 2 + 20);
+  ctx.fillText('Tap to play again', width / 2, height / 2 + 20);
 }
 
 function getReserveLayout(gridOffsetX: number, gridWidth: number, count: number, reserveHeight: number): { iconSize: number; padding: number; startX: number; gap: number; topPad: number } {
@@ -880,14 +888,14 @@ export function screenToGrid(
   flipped: boolean,
   reserveCounts?: { p1: number; p2: number }
 ): { type: 'grid'; pos: Position; unitIndex: number } | { type: 'reserve'; player: Player; unitIndex: number } | { type: 'endTurn' } | { type: 'retreat' } | null {
-  const { gridOffsetX, gridOffsetY, cellSize, reserveHeight, canvas, buttonBarHeight } = rc;
+  const { gridOffsetX, gridOffsetY, cellSize, reserveHeight, width, height, buttonBarHeight } = rc;
   const gridTop = gridOffsetY + reserveHeight;
   const gridWidth = cellSize * GRID_COLS;
 
-  const btnY = canvas.height - buttonBarHeight;
+  const btnY = height - buttonBarHeight;
   if (screenY >= btnY) {
-    if (screenX < canvas.width / 2) return { type: 'endTurn' };
-    return { type: 'retreat' };
+    if (screenX >= width - 84) return { type: 'retreat' };
+    return { type: 'endTurn' };
   }
 
   if (

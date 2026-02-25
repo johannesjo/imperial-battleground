@@ -20,8 +20,9 @@ export function setupInput(
   function handlePointer(e: PointerEvent) {
     e.preventDefault();
     const rect = canvas.getBoundingClientRect();
-    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
-    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+    // Convert to CSS pixel space (matches rendering coordinate system)
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
 
     const hit = screenToGrid(getRc(), x, y, flipped(), getReserveCounts?.());
 
@@ -49,8 +50,8 @@ export function setupInput(
   function handleMove(e: PointerEvent) {
     if (!onHover) return;
     const rect = canvas.getBoundingClientRect();
-    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
-    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
 
     const hit = screenToGrid(getRc(), x, y, flipped(), getReserveCounts?.());
     if (hit?.type === 'grid') {
