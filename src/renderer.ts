@@ -218,7 +218,8 @@ export function render(
   state: GameState,
   validMoves: Position[],
   validAttacks: Position[],
-  flipped: boolean
+  flipped: boolean,
+  selectedUnitId: string | null = null
 ): void {
   const { ctx, canvas } = rc;
 
@@ -231,11 +232,11 @@ export function render(
   const topReserveY = rc.gridOffsetY;
   const bottomReserveY = rc.gridOffsetY + rc.reserveHeight + rc.cellSize * GRID_ROWS;
 
-  renderReserve(rc, state, flipped ? 1 : 2, topReserveY);
-  renderReserve(rc, state, flipped ? 2 : 1, bottomReserveY);
+  renderReserve(rc, state, flipped ? 1 : 2, topReserveY, selectedUnitId);
+  renderReserve(rc, state, flipped ? 2 : 1, bottomReserveY, selectedUnitId);
 
   const gridTop = rc.gridOffsetY + rc.reserveHeight;
-  renderGrid(rc, state, gridTop, validMoves, validAttacks, flipped);
+  renderGrid(rc, state, gridTop, validMoves, validAttacks, flipped, selectedUnitId);
 
   renderButtons(rc, state);
 }
@@ -262,7 +263,7 @@ function renderStatusBar(rc: RenderContext, state: GameState, player: Player, y:
   ctx.fillText(`Turn ${state.turnNumber}`, canvas.width - 12, y + rc.statusBarHeight / 2);
 }
 
-function renderReserve(rc: RenderContext, state: GameState, player: Player, y: number): void {
+function renderReserve(rc: RenderContext, state: GameState, player: Player, y: number, selectedUnitId: string | null = null): void {
   const { ctx, cellSize, gridOffsetX } = rc;
   const gridWidth = cellSize * GRID_COLS;
 
@@ -290,9 +291,24 @@ function renderReserve(rc: RenderContext, state: GameState, player: Player, y: n
 
   reserve.forEach((unit, i) => {
     const ux = startX + i * (unitSize + padding);
-    drawUnitIcon(ctx, unit.type, ux + unitSize / 2, unitY + unitSize / 2 - 2, unitSize, color);
+    const isSelected = unit.id === selectedUnitId;
 
-    ctx.fillStyle = color;
+    if (isSelected) {
+      ctx.save();
+      ctx.shadowColor = COLORS.selected;
+      ctx.shadowBlur = 12;
+      ctx.fillStyle = COLORS.selected;
+      ctx.globalAlpha = 0.25;
+      ctx.beginPath();
+      ctx.arc(ux + unitSize / 2, unitY + unitSize / 2 - 2, unitSize / 2 + 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.restore();
+    }
+
+    drawUnitIcon(ctx, unit.type, ux + unitSize / 2, unitY + unitSize / 2 - 2, unitSize, isSelected ? COLORS.selected : color);
+
+    ctx.fillStyle = isSelected ? COLORS.selected : color;
     ctx.font = '9px monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
@@ -306,7 +322,8 @@ function renderGrid(
   gridTop: number,
   validMoves: Position[],
   validAttacks: Position[],
-  flipped: boolean
+  flipped: boolean,
+  selectedUnitId: string | null = null
 ): void {
   const { ctx, cellSize, gridOffsetX } = rc;
 
@@ -342,7 +359,7 @@ function renderGrid(
 
       const sq = state.grid[r]?.[c];
       if (sq && sq.units.length > 0) {
-        renderUnitsInSquare(ctx, sq.units, x, y, cellSize);
+        renderUnitsInSquare(ctx, sq.units, x, y, cellSize, selectedUnitId);
       }
     }
   }
@@ -353,7 +370,8 @@ function renderUnitsInSquare(
   units: Unit[],
   x: number,
   y: number,
-  cellSize: number
+  cellSize: number,
+  selectedUnitId: string | null = null
 ): void {
   const maxPerRow = 3;
   const unitSize = Math.min(cellSize / maxPerRow - 4, 32);
@@ -364,7 +382,23 @@ function renderUnitsInSquare(
     const row = Math.floor(i / maxPerRow);
     const ux = x + 8 + col * (unitSize + 4);
     const uy = y + 4 + row * (unitSize + levelFontSize + 4);
-    const color = unit.owner === 1 ? COLORS.p1 : COLORS.p2;
+    const isSelected = unit.id === selectedUnitId;
+    const baseColor = unit.owner === 1 ? COLORS.p1 : COLORS.p2;
+    const color = isSelected ? COLORS.selected : baseColor;
+
+    // Selection glow
+    if (isSelected) {
+      ctx.save();
+      ctx.shadowColor = COLORS.selected;
+      ctx.shadowBlur = 10;
+      ctx.fillStyle = COLORS.selected;
+      ctx.globalAlpha = 0.2;
+      ctx.beginPath();
+      ctx.arc(ux + unitSize / 2, uy + unitSize / 2, unitSize / 2 + 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.restore();
+    }
 
     drawUnitIcon(ctx, unit.type, ux + unitSize / 2, uy + unitSize / 2, unitSize, color);
 

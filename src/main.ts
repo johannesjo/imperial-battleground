@@ -173,7 +173,7 @@ function draw() {
     renderGameOver(rc, state.winner);
     return;
   }
-  render(rc, state, validMoves, validAttacks, isFlipped());
+  render(rc, state, validMoves, validAttacks, isFlipped(), selectedUnitId);
 }
 
 setupInput(canvas, rc, isFlipped, handleAction);
