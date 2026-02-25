@@ -4,12 +4,13 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "bunx --bun live-server --port=3000 --no-browser",
+    "dev": "bunx --bun vite --port=3000",
     "test": "bun test",
     "typecheck": "bunx tsc --noEmit"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "vite": "^7.3.1"
   },
   "peerDependencies": {
     "typescript": "^5"
