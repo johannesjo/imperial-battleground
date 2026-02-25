@@ -40,7 +40,56 @@ export interface GameState {
   readonly combatLog: CombatLogEntry[];
 }
 
-export type GamePhase = 'playing' | 'handoff' | 'game-over' | 'retreat-confirm';
+export type GamePhase = 'scenario-select' | 'playing' | 'handoff' | 'game-over' | 'retreat-confirm';
+
+export interface Scenario {
+  readonly name: string;
+  readonly description: string;
+  readonly army: ReadonlyArray<{ type: UnitType; level: number }>;
+}
+
+export const SCENARIOS: readonly Scenario[] = [
+  {
+    name: 'Skirmish',
+    description: '3 units',
+    army: [
+      { type: 'infantry', level: 2 },
+      { type: 'cavalry', level: 2 },
+      { type: 'artillery', level: 2 },
+    ],
+  },
+  {
+    name: 'Battle',
+    description: '7 units',
+    army: [
+      { type: 'infantry', level: 3 },
+      { type: 'infantry', level: 2 },
+      { type: 'infantry', level: 2 },
+      { type: 'cavalry', level: 3 },
+      { type: 'cavalry', level: 2 },
+      { type: 'artillery', level: 3 },
+      { type: 'artillery', level: 2 },
+    ],
+  },
+  {
+    name: 'War',
+    description: '12 units',
+    army: [
+      { type: 'infantry', level: 3 },
+      { type: 'infantry', level: 3 },
+      { type: 'infantry', level: 2 },
+      { type: 'infantry', level: 2 },
+      { type: 'infantry', level: 2 },
+      { type: 'cavalry', level: 3 },
+      { type: 'cavalry', level: 3 },
+      { type: 'cavalry', level: 2 },
+      { type: 'cavalry', level: 2 },
+      { type: 'artillery', level: 3 },
+      { type: 'artillery', level: 2 },
+      { type: 'artillery', level: 2 },
+    ],
+  },
+];
 
 export interface CombatLogEntry {
   readonly turn: number;

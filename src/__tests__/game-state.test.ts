@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { createInitialState, createUnit } from '../game-state';
-import { DEFAULT_AP, GRID_COLS, GRID_ROWS } from '../types';
+import { DEFAULT_AP, GRID_COLS, GRID_ROWS, SCENARIOS } from '../types';
 
 describe('createUnit', () => {
   test('creates a unit with correct properties', () => {
@@ -22,6 +22,13 @@ describe('createUnit', () => {
 });
 
 describe('createInitialState', () => {
+  test('without scenario starts in scenario-select phase with empty reserves', () => {
+    const state = createInitialState();
+    expect(state.phase).toBe('scenario-select');
+    expect(state.p1Reserve.length).toBe(0);
+    expect(state.p2Reserve.length).toBe(0);
+  });
+
   test('creates empty 3x4 grid', () => {
     const state = createInitialState();
     expect(state.grid.length).toBe(GRID_ROWS);
@@ -31,8 +38,15 @@ describe('createInitialState', () => {
     });
   });
 
-  test('populates both reserves with mirror armies', () => {
-    const state = createInitialState();
+  test('with scenario starts in playing phase with correct army', () => {
+    const state = createInitialState(SCENARIOS[0]);
+    expect(state.phase).toBe('playing');
+    expect(state.p1Reserve.length).toBe(3);
+    expect(state.p2Reserve.length).toBe(3);
+  });
+
+  test('Battle scenario populates both reserves with mirror armies', () => {
+    const state = createInitialState(SCENARIOS[1]);
     expect(state.p1Reserve.length).toBe(7);
     expect(state.p2Reserve.length).toBe(7);
 
@@ -46,8 +60,14 @@ describe('createInitialState', () => {
     expect(countTypes(state.p2Reserve)).toEqual({ infantry: 3, cavalry: 2, artillery: 2 });
   });
 
+  test('War scenario creates 12 units per side', () => {
+    const state = createInitialState(SCENARIOS[2]);
+    expect(state.p1Reserve.length).toBe(12);
+    expect(state.p2Reserve.length).toBe(12);
+  });
+
   test('units start at level 2 or 3', () => {
-    const state = createInitialState();
+    const state = createInitialState(SCENARIOS[1]);
     [...state.p1Reserve, ...state.p2Reserve].forEach(u => {
       expect(u.level).toBeGreaterThanOrEqual(2);
       expect(u.level).toBeLessThanOrEqual(3);
@@ -55,13 +75,13 @@ describe('createInitialState', () => {
   });
 
   test('player 1 starts first with full AP', () => {
-    const state = createInitialState();
+    const state = createInitialState(SCENARIOS[1]);
     expect(state.currentPlayer).toBe(1);
     expect(state.actionPoints).toBe(DEFAULT_AP);
   });
 
-  test('game starts in playing phase with no winner', () => {
-    const state = createInitialState();
+  test('with scenario game starts in playing phase with no winner', () => {
+    const state = createInitialState(SCENARIOS[1]);
     expect(state.phase).toBe('playing');
     expect(state.winner).toBeNull();
     expect(state.selectedSquare).toBeNull();

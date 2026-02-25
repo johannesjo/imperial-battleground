@@ -4,7 +4,9 @@ import { deployUnit, moveUnit, attackSquare, checkWinCondition } from '../action
 import { createInitialState, createUnit, getSquare } from '../game-state';
 import { getValidAttacks } from '../rules';
 import type { GameState, GridRow, Position, Unit } from '../types';
-import { BASE_THRESHOLD, BONUS_VALUES } from '../types';
+import { BASE_THRESHOLD, BONUS_VALUES, SCENARIOS } from '../types';
+
+const BATTLE = SCENARIOS[1]!;
 
 function placeUnit(state: GameState, unit: Unit, pos: Position): GameState {
   const newGrid = state.grid.map((row, r) =>
@@ -42,7 +44,7 @@ function d40Roll(roll: number): number {
 
 describe('Conquest of the New World combat scenarios', () => {
   test('infantry deploys, cannot attack same turn', () => {
-    let state = createInitialState();
+    let state = createInitialState(BATTLE);
     const inf = state.p1Reserve.find(u => u.type === 'infantry')!;
 
     // Deploy infantry to home row
@@ -66,7 +68,7 @@ describe('Conquest of the New World combat scenarios', () => {
   test('cavalry charge: move 1, attack with +6 bonus', () => {
     const cav = createUnit('cavalry', 1, 2);
     const enemy = createUnit('infantry', 2, 5);
-    let state = createInitialState();
+    let state = createInitialState(BATTLE);
     state = placeUnit(state, cav, { col: 1, row: 0 });
     state = placeUnit(state, enemy, { col: 1, row: 2 });
 
@@ -99,7 +101,7 @@ describe('Conquest of the New World combat scenarios', () => {
     const inf = createUnit('infantry', 1, 3);
     const cav = createUnit('cavalry', 1, 2);
     const enemy = createUnit('infantry', 2, 5);
-    let state = createInitialState();
+    let state = createInitialState(BATTLE);
     state = placeUnit(state, inf, { col: 1, row: 1 });
     state = placeUnit(state, cav, { col: 1, row: 1 });
     state = placeUnit(state, enemy, { col: 1, row: 2 });
@@ -122,7 +124,7 @@ describe('Conquest of the New World combat scenarios', () => {
     const inf = createUnit('infantry', 1, 3);
     const cav = createUnit('cavalry', 1, 2);
     const enemy = createUnit('infantry', 2, 5);
-    let state = createInitialState();
+    let state = createInitialState(BATTLE);
     state = placeUnit(state, inf, { col: 1, row: 1 });
     state = placeUnit(state, cav, { col: 1, row: 1 });
     state = placeUnit(state, enemy, { col: 1, row: 2 });
@@ -150,7 +152,7 @@ describe('Conquest of the New World combat scenarios', () => {
   test('artillery fires entire column', () => {
     const art = createUnit('artillery', 1, 2);
     const enemyFar = createUnit('infantry', 2, 2);
-    let state = createInitialState();
+    let state = createInitialState(BATTLE);
     // Artillery on P1 home row
     state = placeUnit(state, art, { col: 1, row: 0 });
     // Enemy 3 rows away
@@ -173,7 +175,7 @@ describe('Conquest of the New World combat scenarios', () => {
   test('destroying last enemy triggers win', () => {
     const inf = createUnit('infantry', 1, 5);
     const enemy = createUnit('infantry', 2, 1); // 1 HP, easy to destroy
-    let state = createInitialState();
+    let state = createInitialState(BATTLE);
     state = { ...state, p1Reserve: [], p2Reserve: [] };
     state = placeUnit(state, inf, { col: 1, row: 1 });
     state = placeUnit(state, enemy, { col: 1, row: 2 });
@@ -197,7 +199,7 @@ describe('Conquest of the New World combat scenarios', () => {
     mockRandom([d40Roll(10)]);
     const inf = createUnit('infantry', 1, 1);
     const enemy = createUnit('infantry', 2, 5);
-    let state = createInitialState();
+    let state = createInitialState(BATTLE);
     state = placeUnit(state, inf, { col: 1, row: 1 });
     state = placeUnit(state, enemy, { col: 1, row: 2 });
 
@@ -228,7 +230,7 @@ describe('Conquest of the New World combat scenarios', () => {
     const inf = createUnit('infantry', 1, 2);
     const art = createUnit('artillery', 1, 2);
     const enemy = createUnit('infantry', 2, 5);
-    let state = createInitialState();
+    let state = createInitialState(BATTLE);
     // Cav in square adjacent to enemy
     state = placeUnit(state, cav, { col: 1, row: 1 });
     // Inf + Art in another square adjacent to enemy

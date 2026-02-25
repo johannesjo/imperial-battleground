@@ -3,6 +3,9 @@ import { describe, expect, test } from 'bun:test';
 import { getValidMoves, canDeploy } from '../rules';
 import { createInitialState, createUnit, getSquare } from '../game-state';
 import type { GameState, Position, Unit } from '../types';
+import { SCENARIOS } from '../types';
+
+const BATTLE = SCENARIOS[1]!;
 
 /** Place a unit on the grid and return updated state */
 function placeUnit(state: GameState, unit: Unit, pos: Position): GameState {
@@ -20,7 +23,7 @@ function placeUnit(state: GameState, unit: Unit, pos: Position): GameState {
 describe('getValidMoves', () => {
   test('infantry can move 1 square orthogonally', () => {
     const inf = createUnit('infantry', 1, 2);
-    let state = createInitialState();
+    let state = createInitialState(BATTLE);
     state = placeUnit(state, inf, { col: 1, row: 1 });
 
     const moves = getValidMoves(state, inf, { col: 1, row: 1 });
@@ -35,7 +38,7 @@ describe('getValidMoves', () => {
 
   test('infantry cannot move diagonally', () => {
     const inf = createUnit('infantry', 1, 2);
-    let state = createInitialState();
+    let state = createInitialState(BATTLE);
     state = placeUnit(state, inf, { col: 1, row: 1 });
 
     const moves = getValidMoves(state, inf, { col: 1, row: 1 });
@@ -49,7 +52,7 @@ describe('getValidMoves', () => {
 
   test('cavalry can move up to 2 squares orthogonally', () => {
     const cav = createUnit('cavalry', 1, 2);
-    let state = createInitialState();
+    let state = createInitialState(BATTLE);
     state = placeUnit(state, cav, { col: 1, row: 1 });
 
     const moves = getValidMoves(state, cav, { col: 1, row: 1 });
@@ -66,7 +69,7 @@ describe('getValidMoves', () => {
 
   test('artillery can only move within home row', () => {
     const art = createUnit('artillery', 1, 2);
-    let state = createInitialState();
+    let state = createInitialState(BATTLE);
     state = placeUnit(state, art, { col: 0, row: 0 }); // P1 home row
 
     const moves = getValidMoves(state, art, { col: 0, row: 0 });
@@ -78,7 +81,7 @@ describe('getValidMoves', () => {
 
   test('units cannot move off the grid', () => {
     const inf = createUnit('infantry', 1, 2);
-    let state = createInitialState();
+    let state = createInitialState(BATTLE);
     state = placeUnit(state, inf, { col: 0, row: 0 }); // corner
 
     const moves = getValidMoves(state, inf, { col: 0, row: 0 });
@@ -91,7 +94,7 @@ describe('getValidMoves', () => {
   });
 
   test('units cannot move to squares at max unit count', () => {
-    let state = createInitialState();
+    let state = createInitialState(BATTLE);
     // Fill a square with 3 units (max)
     for (let i = 0; i < 3; i++) {
       state = placeUnit(state, createUnit('infantry', 1, 2), { col: 1, row: 0 });
@@ -109,7 +112,7 @@ describe('getValidMoves', () => {
   test('infantry cannot move onto square with enemy units', () => {
     const inf = createUnit('infantry', 1, 2);
     const enemy = createUnit('infantry', 2, 2);
-    let state = createInitialState();
+    let state = createInitialState(BATTLE);
     state = placeUnit(state, inf, { col: 1, row: 1 });
     state = placeUnit(state, enemy, { col: 1, row: 2 });
 
@@ -122,7 +125,7 @@ describe('getValidMoves', () => {
   test('cavalry cannot pass through enemy-occupied square', () => {
     const cav = createUnit('cavalry', 1, 2);
     const enemy = createUnit('infantry', 2, 2);
-    let state = createInitialState();
+    let state = createInitialState(BATTLE);
     state = placeUnit(state, cav, { col: 0, row: 0 });
     // Place enemy on the intermediate square
     state = placeUnit(state, enemy, { col: 1, row: 0 });
@@ -139,7 +142,7 @@ describe('getValidMoves', () => {
   test('unit that already moved cannot move again', () => {
     const inf = createUnit('infantry', 1, 2);
     inf.hasMoved = true;
-    let state = createInitialState();
+    let state = createInitialState(BATTLE);
     state = placeUnit(state, inf, { col: 1, row: 1 });
 
     const moves = getValidMoves(state, inf, { col: 1, row: 1 });
@@ -149,20 +152,20 @@ describe('getValidMoves', () => {
 
 describe('canDeploy', () => {
   test('can deploy to own home row if space available', () => {
-    const state = createInitialState();
+    const state = createInitialState(BATTLE);
     expect(canDeploy(state, 1, { col: 0, row: 0 })).toBe(true);
     expect(canDeploy(state, 1, { col: 1, row: 0 })).toBe(true);
     expect(canDeploy(state, 1, { col: 2, row: 0 })).toBe(true);
   });
 
   test('cannot deploy to non-home row', () => {
-    const state = createInitialState();
+    const state = createInitialState(BATTLE);
     expect(canDeploy(state, 1, { col: 1, row: 1 })).toBe(false);
     expect(canDeploy(state, 1, { col: 1, row: 3 })).toBe(false);
   });
 
   test('P2 home row is row 3', () => {
-    const state = createInitialState();
+    const state = createInitialState(BATTLE);
     expect(canDeploy(state, 2, { col: 1, row: 3 })).toBe(true);
     expect(canDeploy(state, 2, { col: 1, row: 0 })).toBe(false);
   });

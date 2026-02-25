@@ -4,10 +4,10 @@ import { createInitialState, getSquare, getReserve, getHomeRow } from './game-st
 import { getValidMoves, getValidGroupMoves, getValidAttacks, canDeploy } from './rules';
 import { deployUnit, moveUnit, moveUnits, attackSquare, endTurn, confirmHandoff, checkWinCondition } from './actions';
 import { calculateBonuses, calculateThreshold, getArtilleryThreshold } from './combat';
-import { createRenderContext, render, renderHandoff, renderGameOver } from './renderer';
+import { createRenderContext, render, renderHandoff, renderGameOver, renderScenarioSelect, screenToScenario } from './renderer';
 import { setupInput } from './input';
 import type { GameAction } from './input';
-import { GRID_COLS, D40, ARTILLERY_VULNERABILITY_THRESHOLD, ARTILLERY_VULNERABILITY_DAMAGE } from './types';
+import { GRID_COLS, D40, ARTILLERY_VULNERABILITY_THRESHOLD, ARTILLERY_VULNERABILITY_DAMAGE, SCENARIOS } from './types';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 
@@ -219,6 +219,18 @@ function computePreview(): PreviewInfo | null {
 }
 
 function handleAction(action: GameAction) {
+  if (state.phase === 'scenario-select') {
+    if (action.type === 'tap') {
+      const idx = screenToScenario(rc, action.x, action.y, SCENARIOS.length);
+      if (idx != null) {
+        state = createInitialState(SCENARIOS[idx]);
+        clearSelection();
+      }
+    }
+    draw();
+    return;
+  }
+
   if (state.phase === 'game-over') {
     if (action.type === 'tap' || action.type === 'selectGrid' || action.type === 'selectReserve') {
       state = createInitialState();
@@ -389,6 +401,10 @@ function startAttackAnim(): void {
 }
 
 function draw() {
+  if (state.phase === 'scenario-select') {
+    renderScenarioSelect(rc, SCENARIOS);
+    return;
+  }
   if (state.phase === 'handoff') {
     renderHandoff(rc, state.currentPlayer);
     return;
@@ -414,5 +430,5 @@ function handleHover(pos: { col: number; row: number } | null): void {
 setupInput(canvas, () => rc, isFlipped, handleAction, handleHover, () => ({
   p1: state.p1Reserve.length,
   p2: state.p2Reserve.length,
-}));
+}), () => state.phase === 'scenario-select');
 draw();

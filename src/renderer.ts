@@ -1,5 +1,5 @@
 // src/renderer.ts
-import type { AttackResult, BonusType, GameState, Player, Position, PreviewInfo, Square, Unit, UnitType } from './types';
+import type { AttackResult, BonusType, GameState, Player, Position, PreviewInfo, Scenario, Square, Unit, UnitType } from './types';
 import { GRID_COLS, GRID_ROWS, BONUS_VALUES, D40 } from './types';
 
 const COLORS = {
@@ -940,5 +940,74 @@ export function screenToGrid(
     return { type: 'grid', pos: { col, row }, unitIndex };
   }
 
+  return null;
+}
+
+export function renderScenarioSelect(rc: RenderContext, scenarios: readonly Scenario[]): void {
+  const { ctx, width, height } = rc;
+
+  ctx.fillStyle = COLORS.bg;
+  ctx.fillRect(0, 0, width, height);
+
+  // Title
+  ctx.fillStyle = COLORS.text;
+  ctx.font = 'bold 24px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('IMPERIAL BATTLEGROUND', width / 2, height * 0.12);
+
+  ctx.font = '14px monospace';
+  ctx.fillStyle = '#90a4ae';
+  ctx.fillText('Choose your battle', width / 2, height * 0.12 + 34);
+
+  // Cards
+  const cardW = Math.min(320, width - 40);
+  const cardH = 72;
+  const gap = 16;
+  const totalH = scenarios.length * cardH + (scenarios.length - 1) * gap;
+  const startY = (height - totalH) / 2 + 20;
+
+  for (let i = 0; i < scenarios.length; i++) {
+    const scenario = scenarios[i]!;
+    const cardX = (width - cardW) / 2;
+    const cardY = startY + i * (cardH + gap);
+
+    // Card background
+    ctx.fillStyle = '#16213e';
+    ctx.strokeStyle = COLORS.gridLine;
+    ctx.lineWidth = 2;
+    roundRect(ctx, cardX, cardY, cardW, cardH, 8);
+    ctx.fill();
+    ctx.stroke();
+
+    // Scenario name
+    ctx.fillStyle = COLORS.text;
+    ctx.font = 'bold 18px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(scenario.name, width / 2, cardY + cardH / 2 - 12);
+
+    // Unit count
+    ctx.fillStyle = '#90a4ae';
+    ctx.font = '13px monospace';
+    ctx.fillText(scenario.description, width / 2, cardY + cardH / 2 + 14);
+  }
+}
+
+export function screenToScenario(rc: RenderContext, x: number, y: number, scenarioCount: number): number | null {
+  const { width, height } = rc;
+  const cardW = Math.min(320, width - 40);
+  const cardH = 72;
+  const gap = 16;
+  const totalH = scenarioCount * cardH + (scenarioCount - 1) * gap;
+  const startY = (height - totalH) / 2 + 20;
+  const cardX = (width - cardW) / 2;
+
+  for (let i = 0; i < scenarioCount; i++) {
+    const cardY = startY + i * (cardH + gap);
+    if (x >= cardX && x <= cardX + cardW && y >= cardY && y <= cardY + cardH) {
+      return i;
+    }
+  }
   return null;
 }

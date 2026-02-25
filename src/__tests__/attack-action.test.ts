@@ -2,6 +2,9 @@ import { describe, expect, test } from 'bun:test';
 import { attackSquare, checkWinCondition } from '../actions';
 import { createInitialState, createUnit } from '../game-state';
 import type { GameState, GridRow, Position, Unit } from '../types';
+import { SCENARIOS } from '../types';
+
+const BATTLE = SCENARIOS[1]!;
 
 function placeUnit(state: GameState, unit: Unit, pos: Position): GameState {
   const newGrid = state.grid.map((row, r) =>
@@ -19,7 +22,7 @@ describe('attackSquare', () => {
   test('costs 1 AP', () => {
     const inf = createUnit('infantry', 1, 5);
     const enemy = createUnit('infantry', 2, 5);
-    let state = createInitialState();
+    let state = createInitialState(BATTLE);
     state = placeUnit(state, inf, { col: 1, row: 1 });
     state = placeUnit(state, enemy, { col: 1, row: 2 });
     const apBefore = state.actionPoints;
@@ -31,7 +34,7 @@ describe('attackSquare', () => {
   test('marks attacking units as hasAttacked', () => {
     const inf = createUnit('infantry', 1, 5);
     const enemy = createUnit('infantry', 2, 5);
-    let state = createInitialState();
+    let state = createInitialState(BATTLE);
     state = placeUnit(state, inf, { col: 1, row: 1 });
     state = placeUnit(state, enemy, { col: 1, row: 2 });
 
@@ -43,7 +46,7 @@ describe('attackSquare', () => {
   test('destroys unit when HP reaches 0', () => {
     const inf = createUnit('infantry', 1, 5);
     const enemy = createUnit('infantry', 2, 1);
-    let state = createInitialState();
+    let state = createInitialState(BATTLE);
     state = placeUnit(state, inf, { col: 1, row: 1 });
     state = placeUnit(state, enemy, { col: 1, row: 2 });
 
@@ -58,7 +61,7 @@ describe('attackSquare', () => {
 
 describe('checkWinCondition', () => {
   test('returns null when both sides have units', () => {
-    let state = createInitialState();
+    let state = createInitialState(BATTLE);
     const inf1 = createUnit('infantry', 1, 2);
     const inf2 = createUnit('infantry', 2, 2);
     state = placeUnit(state, inf1, { col: 0, row: 0 });
@@ -67,7 +70,7 @@ describe('checkWinCondition', () => {
   });
 
   test('player 1 wins when no P2 units remain anywhere', () => {
-    let state = createInitialState();
+    let state = createInitialState(BATTLE);
     state = { ...state, p2Reserve: [] };
     const inf1 = createUnit('infantry', 1, 2);
     state = placeUnit(state, inf1, { col: 0, row: 0 });
@@ -75,7 +78,7 @@ describe('checkWinCondition', () => {
   });
 
   test('player 2 wins when no P1 units remain anywhere', () => {
-    let state = createInitialState();
+    let state = createInitialState(BATTLE);
     state = { ...state, p1Reserve: [] };
     const inf2 = createUnit('infantry', 2, 2);
     state = placeUnit(state, inf2, { col: 0, row: 3 });
@@ -88,7 +91,7 @@ describe('attackSquare with unitIds filter', () => {
     const inf = createUnit('infantry', 1, 3);
     const cav = createUnit('cavalry', 1, 2);
     const enemy = createUnit('infantry', 2, 5);
-    let state = createInitialState();
+    let state = createInitialState(BATTLE);
     state = placeUnit(state, inf, { col: 1, row: 1 });
     state = placeUnit(state, cav, { col: 1, row: 1 });
     state = placeUnit(state, enemy, { col: 1, row: 2 });
@@ -107,7 +110,7 @@ describe('attackSquare with unitIds filter', () => {
     const inf = createUnit('infantry', 1, 3);
     const cav = createUnit('cavalry', 1, 2);
     const enemy = createUnit('infantry', 2, 5);
-    let state = createInitialState();
+    let state = createInitialState(BATTLE);
     state = placeUnit(state, inf, { col: 1, row: 1 });
     state = placeUnit(state, cav, { col: 1, row: 1 });
     state = placeUnit(state, enemy, { col: 1, row: 2 });
@@ -130,7 +133,7 @@ describe('attackSquare with unitIds filter', () => {
     const inf = createUnit('infantry', 1, 3);
     const cav = createUnit('cavalry', 1, 2);
     const enemy = createUnit('infantry', 2, 5);
-    let state = createInitialState();
+    let state = createInitialState(BATTLE);
     state = placeUnit(state, inf, { col: 1, row: 1 });
     state = placeUnit(state, cav, { col: 1, row: 1 });
     state = placeUnit(state, enemy, { col: 1, row: 2 });
@@ -158,7 +161,7 @@ describe('attackSquare with unitIds filter', () => {
     const inf = createUnit('infantry', 1, 3);
     const cav = createUnit('cavalry', 1, 2);
     const enemy = createUnit('infantry', 2, 5);
-    let state = createInitialState();
+    let state = createInitialState(BATTLE);
     state = placeUnit(state, inf, { col: 1, row: 1 });
     state = placeUnit(state, cav, { col: 1, row: 1 });
     state = placeUnit(state, enemy, { col: 1, row: 2 });
@@ -184,7 +187,7 @@ describe('attackSquare with unitIds filter', () => {
     const inf = createUnit('infantry', 1, 3);
     const cav = createUnit('cavalry', 1, 2);
     const enemy = createUnit('infantry', 2, 5);
-    let state = createInitialState();
+    let state = createInitialState(BATTLE);
     state = placeUnit(state, inf, { col: 1, row: 1 });
     state = placeUnit(state, cav, { col: 1, row: 1 });
     state = placeUnit(state, enemy, { col: 1, row: 2 });
@@ -201,7 +204,7 @@ describe('attackSquare with unitIds filter', () => {
   test('attacking with 0 AP returns unchanged state', () => {
     const inf = createUnit('infantry', 1, 3);
     const enemy = createUnit('infantry', 2, 5);
-    let state = createInitialState();
+    let state = createInitialState(BATTLE);
     state = placeUnit(state, inf, { col: 1, row: 1 });
     state = placeUnit(state, enemy, { col: 1, row: 2 });
     state = { ...state, actionPoints: 0 };

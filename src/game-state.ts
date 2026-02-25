@@ -1,5 +1,5 @@
 // src/game-state.ts
-import type { GameState, GridRow, Player, Square, Unit, UnitType, Position } from './types';
+import type { GameState, GridRow, Player, Square, Unit, UnitType, Position, Scenario } from './types';
 import { DEFAULT_AP, GRID_COLS, GRID_ROWS } from './types';
 
 let nextId = 0;
@@ -33,7 +33,10 @@ function createGrid(): readonly GridRow[] {
   return rows;
 }
 
-function createArmy(owner: Player): Unit[] {
+function createArmy(owner: Player, config?: Scenario['army']): Unit[] {
+  if (config) {
+    return config.map(({ type, level }) => createUnit(type, owner, level));
+  }
   return [
     createUnit('infantry', owner, 3),
     createUnit('infantry', owner, 2),
@@ -45,16 +48,16 @@ function createArmy(owner: Player): Unit[] {
   ];
 }
 
-export function createInitialState(): GameState {
+export function createInitialState(scenario?: Scenario): GameState {
   return {
     grid: createGrid(),
-    p1Reserve: createArmy(1),
-    p2Reserve: createArmy(2),
+    p1Reserve: scenario ? createArmy(1, scenario.army) : [],
+    p2Reserve: scenario ? createArmy(2, scenario.army) : [],
     currentPlayer: 1,
     actionPoints: DEFAULT_AP,
     maxActionPoints: DEFAULT_AP,
     selectedSquare: null,
-    phase: 'playing',
+    phase: scenario ? 'playing' : 'scenario-select',
     turnNumber: 1,
     winner: null,
     combatLog: [],

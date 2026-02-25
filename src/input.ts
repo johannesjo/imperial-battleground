@@ -7,7 +7,7 @@ export type GameAction =
   | { type: 'selectReserve'; player: 1 | 2; unitIndex: number }
   | { type: 'endTurn' }
   | { type: 'retreat' }
-  | { type: 'tap' };
+  | { type: 'tap'; x: number; y: number };
 
 export function setupInput(
   canvas: HTMLCanvasElement,
@@ -15,7 +15,8 @@ export function setupInput(
   flipped: () => boolean,
   onAction: (action: GameAction) => void,
   onHover?: (pos: { col: number; row: number } | null) => void,
-  getReserveCounts?: () => { p1: number; p2: number }
+  getReserveCounts?: () => { p1: number; p2: number },
+  rawTapOnly?: () => boolean
 ): void {
   function handlePointer(e: PointerEvent) {
     e.preventDefault();
@@ -24,10 +25,15 @@ export function setupInput(
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
+    if (rawTapOnly?.()) {
+      onAction({ type: 'tap', x, y });
+      return;
+    }
+
     const hit = screenToGrid(getRc(), x, y, flipped(), getReserveCounts?.());
 
     if (!hit) {
-      onAction({ type: 'tap' });
+      onAction({ type: 'tap', x, y });
       return;
     }
 

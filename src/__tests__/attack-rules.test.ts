@@ -3,6 +3,9 @@ import { describe, expect, test } from 'bun:test';
 import { getValidAttacks } from '../rules';
 import { createInitialState, createUnit } from '../game-state';
 import type { GameState, Position, Unit } from '../types';
+import { SCENARIOS } from '../types';
+
+const BATTLE = SCENARIOS[1]!;
 
 function placeUnit(state: GameState, unit: Unit, pos: Position): GameState {
   const newGrid = state.grid.map((row, r) =>
@@ -20,7 +23,7 @@ describe('getValidAttacks', () => {
   test('infantry can attack adjacent orthogonal enemy squares', () => {
     const inf = createUnit('infantry', 1, 2);
     const enemy = createUnit('infantry', 2, 2);
-    let state = createInitialState();
+    let state = createInitialState(BATTLE);
     state = placeUnit(state, inf, { col: 1, row: 1 });
     state = placeUnit(state, enemy, { col: 1, row: 2 });
 
@@ -32,7 +35,7 @@ describe('getValidAttacks', () => {
 
   test('infantry cannot attack empty squares', () => {
     const inf = createUnit('infantry', 1, 2);
-    let state = createInitialState();
+    let state = createInitialState(BATTLE);
     state = placeUnit(state, inf, { col: 1, row: 1 });
 
     const attacks = getValidAttacks(state, { col: 1, row: 1 });
@@ -42,7 +45,7 @@ describe('getValidAttacks', () => {
   test('infantry cannot attack friendly squares', () => {
     const inf1 = createUnit('infantry', 1, 2);
     const inf2 = createUnit('infantry', 1, 2);
-    let state = createInitialState();
+    let state = createInitialState(BATTLE);
     state = placeUnit(state, inf1, { col: 1, row: 1 });
     state = placeUnit(state, inf2, { col: 1, row: 2 });
 
@@ -53,7 +56,7 @@ describe('getValidAttacks', () => {
   test('artillery can attack any enemy in same column', () => {
     const art = createUnit('artillery', 1, 2);
     const enemy = createUnit('infantry', 2, 2);
-    let state = createInitialState();
+    let state = createInitialState(BATTLE);
     state = placeUnit(state, art, { col: 1, row: 0 }); // home row
     state = placeUnit(state, enemy, { col: 1, row: 3 }); // far end
 
@@ -66,7 +69,7 @@ describe('getValidAttacks', () => {
   test('artillery cannot attack different column', () => {
     const art = createUnit('artillery', 1, 2);
     const enemy = createUnit('infantry', 2, 2);
-    let state = createInitialState();
+    let state = createInitialState(BATTLE);
     state = placeUnit(state, art, { col: 0, row: 0 });
     state = placeUnit(state, enemy, { col: 1, row: 3 });
 
@@ -78,7 +81,7 @@ describe('getValidAttacks', () => {
     const inf = createUnit('infantry', 1, 2);
     inf.hasAttacked = true;
     const enemy = createUnit('infantry', 2, 2);
-    let state = createInitialState();
+    let state = createInitialState(BATTLE);
     state = placeUnit(state, inf, { col: 1, row: 1 });
     state = placeUnit(state, enemy, { col: 1, row: 2 });
 
@@ -90,7 +93,7 @@ describe('getValidAttacks', () => {
     const inf = createUnit('infantry', 1, 2);
     inf.hasMoved = true;
     const enemy = createUnit('infantry', 2, 2);
-    let state = createInitialState();
+    let state = createInitialState(BATTLE);
     state = placeUnit(state, inf, { col: 1, row: 1 });
     state = placeUnit(state, enemy, { col: 1, row: 2 });
 
@@ -103,7 +106,7 @@ describe('getValidAttacks', () => {
     cav.hasMoved = true;
     cav.movedSquares = 1;
     const enemy = createUnit('infantry', 2, 2);
-    let state = createInitialState();
+    let state = createInitialState(BATTLE);
     state = placeUnit(state, cav, { col: 1, row: 1 });
     state = placeUnit(state, enemy, { col: 1, row: 2 });
 
@@ -118,7 +121,7 @@ describe('getValidAttacks', () => {
     cav.hasMoved = true;
     cav.movedSquares = 2;
     const enemy = createUnit('infantry', 2, 2);
-    let state = createInitialState();
+    let state = createInitialState(BATTLE);
     state = placeUnit(state, cav, { col: 1, row: 1 });
     state = placeUnit(state, enemy, { col: 1, row: 2 });
 
@@ -130,7 +133,7 @@ describe('getValidAttacks', () => {
     const art = createUnit('artillery', 1, 2);
     art.hasMoved = true;
     const enemy = createUnit('infantry', 2, 2);
-    let state = createInitialState();
+    let state = createInitialState(BATTLE);
     state = placeUnit(state, art, { col: 1, row: 0 });
     state = placeUnit(state, enemy, { col: 1, row: 3 });
 
@@ -144,7 +147,7 @@ describe('getValidAttacks with unitId filter', () => {
     const inf = createUnit('infantry', 1, 2);
     const art = createUnit('artillery', 1, 2);
     const enemy = createUnit('infantry', 2, 2);
-    let state = createInitialState();
+    let state = createInitialState(BATTLE);
     state = placeUnit(state, inf, { col: 1, row: 1 });
     state = placeUnit(state, art, { col: 1, row: 1 });
     state = placeUnit(state, enemy, { col: 1, row: 2 });
@@ -163,7 +166,7 @@ describe('getValidAttacks with unitId filter', () => {
     const art = createUnit('artillery', 1, 2);
     const enemyNear = createUnit('infantry', 2, 2);
     const enemyFar = createUnit('infantry', 2, 2);
-    let state = createInitialState();
+    let state = createInitialState(BATTLE);
     state = placeUnit(state, inf, { col: 1, row: 0 });
     state = placeUnit(state, art, { col: 1, row: 0 });
     state = placeUnit(state, enemyNear, { col: 1, row: 1 });
@@ -181,7 +184,7 @@ describe('getValidAttacks with unitId filter', () => {
     inf.hasMoved = true;
     const cav = createUnit('cavalry', 1, 2);
     const enemy = createUnit('infantry', 2, 2);
-    let state = createInitialState();
+    let state = createInitialState(BATTLE);
     state = placeUnit(state, inf, { col: 1, row: 1 });
     state = placeUnit(state, cav, { col: 1, row: 1 });
     state = placeUnit(state, enemy, { col: 1, row: 2 });
@@ -197,7 +200,7 @@ describe('getValidAttacks with unitId filter', () => {
     const inf = createUnit('infantry', 1, 2);
     inf.hasMoved = true; // infantry can't attack after moving
     const enemy = createUnit('infantry', 2, 2);
-    let state = createInitialState();
+    let state = createInitialState(BATTLE);
     state = placeUnit(state, cav, { col: 1, row: 1 });
     state = placeUnit(state, inf, { col: 1, row: 1 });
     state = placeUnit(state, enemy, { col: 1, row: 2 });
@@ -213,7 +216,7 @@ describe('getValidAttacks with unitId filter', () => {
     cav.hasMoved = true;
     cav.movedSquares = 2;
     const enemy = createUnit('infantry', 2, 2);
-    let state = createInitialState();
+    let state = createInitialState(BATTLE);
     state = placeUnit(state, cav, { col: 1, row: 1 });
     state = placeUnit(state, enemy, { col: 1, row: 2 });
 
@@ -226,7 +229,7 @@ describe('getValidAttacks with unitId filter', () => {
     const art = createUnit('artillery', 1, 2);
     const enemyAdj = createUnit('infantry', 2, 2);
     const enemyFar = createUnit('infantry', 2, 2);
-    let state = createInitialState();
+    let state = createInitialState(BATTLE);
     state = placeUnit(state, inf, { col: 1, row: 0 });
     state = placeUnit(state, art, { col: 1, row: 0 });
     state = placeUnit(state, enemyAdj, { col: 1, row: 1 });
