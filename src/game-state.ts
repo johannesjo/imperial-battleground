@@ -36,9 +36,6 @@ function createGrid(): readonly GridRow[] {
 function createArmy(owner: Player): Unit[] {
   return [
     createUnit('infantry', owner, 2),
-    createUnit('infantry', owner, 2),
-    createUnit('infantry', owner, 2),
-    createUnit('cavalry', owner, 2),
     createUnit('cavalry', owner, 2),
     createUnit('artillery', owner, 2),
   ];

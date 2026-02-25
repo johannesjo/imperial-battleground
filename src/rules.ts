@@ -87,6 +87,28 @@ export function getValidMoves(state: GameState, unit: Unit, from: Position): Pos
   return moves;
 }
 
+/** Returns valid 1-square orthogonal positions where all units can move together.
+ *  Artillery cannot participate. All units must not have moved yet. */
+export function getValidGroupMoves(state: GameState, units: Unit[], from: Position): Position[] {
+  if (units.length < 2) return [];
+  if (units.some(u => u.hasMoved || u.type === 'artillery')) return [];
+
+  const owner = units[0]!.owner;
+  const moves: Position[] = [];
+
+  for (const dir of ORTHOGONAL) {
+    const to: Position = { col: from.col + dir.col, row: from.row + dir.row };
+    if (!isInBounds(to)) continue;
+    const sq = getSquare(state, to);
+    if (!sq) continue;
+    if (sq.units.length > 0 && sq.units[0]!.owner !== owner) continue;
+    if (sq.units.length + units.length > MAX_UNITS_PER_SQUARE) continue;
+    moves.push(to);
+  }
+
+  return moves;
+}
+
 /** Checks whether a player can deploy a unit to the given position */
 export function canDeploy(state: GameState, player: Player, target: Position): boolean {
   const homeRow = getHomeRow(player);
@@ -111,12 +133,16 @@ function hasEnemyUnits(state: GameState, pos: Position, attackerOwner: Player): 
   return sq.units.some(u => u.owner !== attackerOwner);
 }
 
-/** Returns all valid positions that units at `from` can attack */
-export function getValidAttacks(state: GameState, from: Position): Position[] {
+/** Returns all valid positions that units at `from` can attack.
+ *  If unitId is provided, only considers that specific unit. */
+export function getValidAttacks(state: GameState, from: Position, unitId?: string): Position[] {
   const sq = getSquare(state, from);
   if (!sq) return [];
 
-  const attackers = sq.units.filter(u => canUnitAttack(u));
+  let attackers = sq.units.filter(u => canUnitAttack(u));
+  if (unitId) {
+    attackers = attackers.filter(u => u.id === unitId);
+  }
   if (attackers.length === 0) return [];
 
   const owner = attackers[0]!.owner;

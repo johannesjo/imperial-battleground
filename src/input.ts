@@ -3,7 +3,7 @@ import type { RenderContext } from './renderer';
 import { screenToGrid } from './renderer';
 
 export type GameAction =
-  | { type: 'selectGrid'; col: number; row: number }
+  | { type: 'selectGrid'; col: number; row: number; unitIndex: number }
   | { type: 'selectReserve'; player: 1 | 2 }
   | { type: 'endTurn' }
   | { type: 'retreat' }
@@ -30,7 +30,7 @@ export function setupInput(
 
     switch (hit.type) {
       case 'grid':
-        onAction({ type: 'selectGrid', col: hit.pos.col, row: hit.pos.row });
+        onAction({ type: 'selectGrid', col: hit.pos.col, row: hit.pos.row, unitIndex: hit.unitIndex });
         break;
       case 'reserve':
         onAction({ type: 'selectReserve', player: hit.player });

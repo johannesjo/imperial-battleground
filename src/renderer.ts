@@ -1,6 +1,6 @@
 // src/renderer.ts
-import type { GameState, Player, Position, Square, Unit, UnitType } from './types';
-import { GRID_COLS, GRID_ROWS } from './types';
+import type { AttackResult, BonusType, GameState, Player, Position, PreviewInfo, Square, Unit, UnitType } from './types';
+import { GRID_COLS, GRID_ROWS, BONUS_VALUES, D40 } from './types';
 
 const COLORS = {
   bg: '#1a1a2e',
@@ -185,6 +185,8 @@ export interface RenderContext {
   reserveHeight: number;
   statusBarHeight: number;
   buttonBarHeight: number;
+  previewPanelX: number;
+  previewPanelWidth: number;
 }
 
 export function createRenderContext(canvas: HTMLCanvasElement): RenderContext {
@@ -195,9 +197,10 @@ export function createRenderContext(canvas: HTMLCanvasElement): RenderContext {
   const statusBarHeight = 48;
   const buttonBarHeight = 56;
   const reserveHeight = 60;
+  const previewPanelWidth = 200;
 
   const availableHeight = h - statusBarHeight * 2 - buttonBarHeight - reserveHeight * 2;
-  const availableWidth = w - 20;
+  const availableWidth = w - 20 - previewPanelWidth;
 
   const cellSize = Math.min(
     Math.floor(availableWidth / GRID_COLS),
@@ -207,10 +210,13 @@ export function createRenderContext(canvas: HTMLCanvasElement): RenderContext {
   const gridWidth = cellSize * GRID_COLS;
   const totalGridHeight = cellSize * GRID_ROWS + reserveHeight * 2;
 
-  const gridOffsetX = Math.floor((w - gridWidth) / 2);
+  const gridAreaWidth = w - previewPanelWidth;
+  const gridOffsetX = Math.floor((gridAreaWidth - gridWidth) / 2);
   const gridOffsetY = statusBarHeight + Math.floor((h - statusBarHeight * 2 - buttonBarHeight - totalGridHeight) / 2);
 
-  return { canvas, ctx, cellSize, gridOffsetX, gridOffsetY, reserveHeight, statusBarHeight, buttonBarHeight };
+  const previewPanelX = gridAreaWidth;
+
+  return { canvas, ctx, cellSize, gridOffsetX, gridOffsetY, reserveHeight, statusBarHeight, buttonBarHeight, previewPanelX, previewPanelWidth };
 }
 
 export function render(
@@ -219,7 +225,11 @@ export function render(
   validMoves: Position[],
   validAttacks: Position[],
   flipped: boolean,
-  selectedUnitId: string | null = null
+  selectedUnitIds: string[] = [],
+  selectedSquares: Position[] = [],
+  attackResult: AttackResult | null = null,
+  attackAnimProgress = 0,
+  preview: PreviewInfo | null = null
 ): void {
   const { ctx, canvas } = rc;
 
@@ -232,11 +242,19 @@ export function render(
   const topReserveY = rc.gridOffsetY;
   const bottomReserveY = rc.gridOffsetY + rc.reserveHeight + rc.cellSize * GRID_ROWS;
 
-  renderReserve(rc, state, flipped ? 1 : 2, topReserveY, selectedUnitId);
-  renderReserve(rc, state, flipped ? 2 : 1, bottomReserveY, selectedUnitId);
+  renderReserve(rc, state, flipped ? 1 : 2, topReserveY, selectedUnitIds);
+  renderReserve(rc, state, flipped ? 2 : 1, bottomReserveY, selectedUnitIds);
 
   const gridTop = rc.gridOffsetY + rc.reserveHeight;
-  renderGrid(rc, state, gridTop, validMoves, validAttacks, flipped, selectedUnitId);
+  renderGrid(rc, state, gridTop, validMoves, validAttacks, flipped, selectedUnitIds, selectedSquares);
+
+  if (attackResult && attackAnimProgress < 1) {
+    renderAttackResult(rc, attackResult, attackAnimProgress, gridTop, flipped);
+  }
+
+  if (preview) {
+    renderPreview(rc, preview);
+  }
 
   renderButtons(rc, state);
 }
@@ -263,7 +281,7 @@ function renderStatusBar(rc: RenderContext, state: GameState, player: Player, y:
   ctx.fillText(`Turn ${state.turnNumber}`, canvas.width - 12, y + rc.statusBarHeight / 2);
 }
 
-function renderReserve(rc: RenderContext, state: GameState, player: Player, y: number, selectedUnitId: string | null = null): void {
+function renderReserve(rc: RenderContext, state: GameState, player: Player, y: number, selectedUnitIds: string[] = []): void {
   const { ctx, cellSize, gridOffsetX } = rc;
   const gridWidth = cellSize * GRID_COLS;
 
@@ -291,7 +309,7 @@ function renderReserve(rc: RenderContext, state: GameState, player: Player, y: n
 
   reserve.forEach((unit, i) => {
     const ux = startX + i * (unitSize + padding);
-    const isSelected = unit.id === selectedUnitId;
+    const isSelected = selectedUnitIds.includes(unit.id);
 
     if (isSelected) {
       ctx.save();
@@ -323,7 +341,8 @@ function renderGrid(
   validMoves: Position[],
   validAttacks: Position[],
   flipped: boolean,
-  selectedUnitId: string | null = null
+  selectedUnitIds: string[] = [],
+  selectedSquares: Position[] = []
 ): void {
   const { ctx, cellSize, gridOffsetX } = rc;
 
@@ -347,7 +366,7 @@ function renderGrid(
         ctx.fillRect(x, y, cellSize, cellSize);
       }
 
-      if (state.selectedSquare && state.selectedSquare.col === c && state.selectedSquare.row === r) {
+      if (selectedSquares.some(s => s.col === c && s.row === r)) {
         ctx.strokeStyle = COLORS.selected;
         ctx.lineWidth = 3;
         ctx.strokeRect(x + 2, y + 2, cellSize - 4, cellSize - 4);
@@ -373,7 +392,7 @@ function renderGrid(
 
       const sq = state.grid[r]?.[c];
       if (sq && sq.units.length > 0) {
-        renderUnitsInSquare(ctx, sq.units, x, y, cellSize, selectedUnitId);
+        renderUnitsInSquare(ctx, sq.units, x, y, cellSize, selectedUnitIds);
       }
     }
   }
@@ -385,7 +404,7 @@ function renderUnitsInSquare(
   x: number,
   y: number,
   cellSize: number,
-  selectedUnitId: string | null = null
+  selectedUnitIds: string[] = []
 ): void {
   const colWidth = cellSize / 3;
   const unitSize = Math.min(colWidth - 6, cellSize * 0.7);
@@ -395,7 +414,7 @@ function renderUnitsInSquare(
     if (i >= 3) return;
     const cx = x + colWidth * i + colWidth / 2;
     const cy = y + cellSize / 2 - levelFontSize / 2;
-    const isSelected = unit.id === selectedUnitId;
+    const isSelected = selectedUnitIds.includes(unit.id);
     const baseColor = unit.owner === 1 ? COLORS.p1 : COLORS.p2;
     const color = isSelected ? COLORS.selected : baseColor;
 
@@ -420,6 +439,297 @@ function renderUnitsInSquare(
     ctx.textBaseline = 'top';
     ctx.fillText(`${unit.level}`, cx, cy + unitSize * 0.42);
   });
+}
+
+function gridCellScreen(
+  rc: RenderContext,
+  pos: Position,
+  gridTop: number,
+  flipped: boolean
+): { x: number; y: number } {
+  const displayCol = flipped ? GRID_COLS - 1 - pos.col : pos.col;
+  const displayRow = flipped ? GRID_ROWS - 1 - pos.row : pos.row;
+  const x = rc.gridOffsetX + displayCol * rc.cellSize;
+  const y = gridTop + (GRID_ROWS - 1 - displayRow) * rc.cellSize;
+  return { x, y };
+}
+
+const BONUS_LABELS: Record<string, string> = {
+  'combined-arms-2': 'Combined Arms',
+  'combined-arms-3': 'Combined Arms+',
+  'flanking-2': 'Flanking',
+  'flanking-3': 'Flanking+',
+  'flanking-4': 'Flanking++',
+  'cavalry-charge': 'Cavalry Charge',
+};
+
+function renderAttackResult(
+  rc: RenderContext,
+  result: AttackResult,
+  progress: number,
+  gridTop: number,
+  flipped: boolean
+): void {
+  const { ctx, cellSize, canvas } = rc;
+
+  // Phase 1 (0-0.3): flash target square
+  // Phase 2 (0.1-0.9): show result panel
+  // Phase 3 (0.7-1.0): fade out
+
+  // Flash target square red
+  if (progress < 0.4) {
+    const flashAlpha = progress < 0.15
+      ? progress / 0.15
+      : Math.max(0, 1 - (progress - 0.15) / 0.25);
+    const { x, y } = gridCellScreen(rc, result.targetSquare, gridTop, flipped);
+    ctx.save();
+    ctx.fillStyle = result.hits > 0 ? '#ff1744' : '#666';
+    ctx.globalAlpha = flashAlpha * 0.6;
+    ctx.fillRect(x, y, cellSize, cellSize);
+    ctx.restore();
+  }
+
+  // Flash attacker squares
+  if (progress < 0.3) {
+    const flashAlpha = Math.max(0, 1 - progress / 0.3);
+    for (const sq of result.attackerSquares) {
+      const { x, y } = gridCellScreen(rc, sq, gridTop, flipped);
+      ctx.save();
+      ctx.fillStyle = '#ffd54f';
+      ctx.globalAlpha = flashAlpha * 0.4;
+      ctx.fillRect(x, y, cellSize, cellSize);
+      ctx.restore();
+    }
+  }
+
+  // Result panel
+  const panelAlpha = progress < 0.1
+    ? progress / 0.1
+    : progress > 0.7
+      ? Math.max(0, 1 - (progress - 0.7) / 0.3)
+      : 1;
+
+  if (panelAlpha <= 0) return;
+
+  ctx.save();
+  ctx.globalAlpha = panelAlpha;
+
+  // Panel dimensions
+  const panelW = Math.min(280, canvas.width - 32);
+  const lineH = 22;
+  const bonusLines = result.bonuses.length;
+  const damageLines = result.unitDamage.length;
+  const panelH = 70 + bonusLines * lineH + (damageLines > 0 ? 26 + damageLines * lineH : 0);
+  const panelX = (canvas.width - panelW) / 2;
+
+  // Position panel near target square
+  const target = gridCellScreen(rc, result.targetSquare, gridTop, flipped);
+  const targetCenterY = target.y + cellSize / 2;
+  let panelY = targetCenterY - panelH - 12;
+  if (panelY < 8) panelY = targetCenterY + cellSize + 12;
+
+  // Panel background
+  ctx.fillStyle = '#0d1b2a';
+  ctx.strokeStyle = result.hits > 0 ? '#ff5722' : '#546e7a';
+  ctx.lineWidth = 2;
+  roundRect(ctx, panelX, panelY, panelW, panelH, 8);
+  ctx.fill();
+  ctx.stroke();
+
+  let textY = panelY + 20;
+
+  // Title line
+  ctx.fillStyle = result.hits > 0 ? '#ff8a65' : '#90a4ae';
+  ctx.font = 'bold 15px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(
+    result.hits > 0 ? `\u2694 ATTACK \u2014 ${result.hits} HIT${result.hits !== 1 ? 'S' : ''}!` : '\u2694 ATTACK \u2014 MISS!',
+    panelX + panelW / 2,
+    textY
+  );
+  textY += 26;
+
+  // Dice & threshold
+  ctx.fillStyle = '#b0bec5';
+  ctx.font = '13px monospace';
+  ctx.fillText(
+    `${result.totalDice} dice \u00d7 d40  |  threshold \u2264 ${result.threshold}`,
+    panelX + panelW / 2,
+    textY
+  );
+  textY += 24;
+
+  // Bonuses
+  if (bonusLines > 0) {
+    for (const bonus of result.bonuses) {
+      ctx.fillStyle = '#ffcc02';
+      ctx.font = '12px monospace';
+      ctx.fillText(
+        `\u2605 ${BONUS_LABELS[bonus] ?? bonus} (+${BONUS_VALUES[bonus]})`,
+        panelX + panelW / 2,
+        textY
+      );
+      textY += lineH;
+    }
+  }
+
+  // Damage breakdown
+  if (damageLines > 0) {
+    textY += 4;
+    for (const dmg of result.unitDamage) {
+      ctx.fillStyle = dmg.destroyed ? '#ff1744' : '#ef9a9a';
+      ctx.font = '12px monospace';
+      const status = dmg.destroyed ? 'DESTROYED' : `${dmg.damage} dmg`;
+      ctx.fillText(
+        `${status}`,
+        panelX + panelW / 2,
+        textY
+      );
+      textY += lineH;
+    }
+  }
+
+  ctx.restore();
+}
+
+function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+const UNIT_TYPE_LABELS: Record<UnitType, string> = {
+  infantry: 'Inf',
+  cavalry: 'Cav',
+  artillery: 'Art',
+};
+
+function renderPreview(rc: RenderContext, preview: PreviewInfo): void {
+  const { ctx, previewPanelX, previewPanelWidth, statusBarHeight, canvas, buttonBarHeight } = rc;
+  const panelPad = 12;
+  const panelX = previewPanelX + panelPad;
+  const panelW = previewPanelWidth - panelPad * 2;
+  const panelTop = statusBarHeight + panelPad;
+  const panelMaxH = canvas.height - statusBarHeight * 2 - buttonBarHeight - panelPad * 2;
+
+  // Measure content height
+  const lineH = 22;
+  const unitIconSize = 20;
+  const units = preview.selectedUnits ?? [];
+  const bonuses = preview.bonuses ?? [];
+
+  let contentH = 40; // title + spacing
+  contentH += units.length * (unitIconSize + 6); // unit rows
+  if (preview.type === 'attack') {
+    contentH += 12; // gap
+    contentH += lineH; // dice line
+    if (bonuses.length > 0) {
+      contentH += 8 + bonuses.length * lineH; // bonus lines
+    }
+    contentH += 12 + lineH * 2; // threshold + hit chance
+  } else {
+    contentH += 12 + lineH * 2; // move info lines
+  }
+  contentH += 16; // bottom padding
+
+  const panelH = Math.min(contentH, panelMaxH);
+
+  // Panel background
+  ctx.fillStyle = COLORS.reserve;
+  ctx.strokeStyle = preview.type === 'attack' ? '#ff5722' : '#4caf50';
+  ctx.lineWidth = 2;
+  roundRect(ctx, panelX, panelTop, panelW, panelH, 8);
+  ctx.fill();
+  ctx.stroke();
+
+  let y = panelTop + 24;
+
+  // Title
+  ctx.fillStyle = preview.type === 'attack' ? '#ff8a65' : '#81c784';
+  ctx.font = 'bold 14px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const titleIcon = preview.type === 'attack' ? '\u2694' : '\u2192';
+  ctx.fillText(`${titleIcon} ${preview.type.toUpperCase()}`, panelX + panelW / 2, y);
+  y += 28;
+
+  // Selected units
+  const unitCx = panelX + 20;
+  for (const unit of units) {
+    const color = unit.owner === 1 ? COLORS.p1 : COLORS.p2;
+    drawUnitIcon(ctx, unit.type, unitCx, y, unitIconSize, color);
+    ctx.fillStyle = COLORS.text;
+    ctx.font = '12px monospace';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`${UNIT_TYPE_LABELS[unit.type]} L${unit.level}`, unitCx + unitIconSize / 2 + 8, y);
+    y += unitIconSize + 6;
+  }
+
+  if (preview.type === 'attack') {
+    y += 8;
+
+    // Dice line
+    ctx.fillStyle = '#b0bec5';
+    ctx.font = '13px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`${preview.totalDice ?? 0} dice \u00d7 d${D40}`, panelX + panelW / 2, y);
+    y += lineH;
+
+    // Bonuses
+    if (bonuses.length > 0) {
+      y += 4;
+      for (const bonus of bonuses) {
+        ctx.fillStyle = '#ffcc02';
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(`\u2605 ${BONUS_LABELS[bonus]} +${BONUS_VALUES[bonus]}`, panelX + panelW / 2, y);
+        y += lineH;
+      }
+    }
+
+    // Threshold + hit chance
+    y += 8;
+    ctx.fillStyle = COLORS.text;
+    ctx.font = '13px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(`Threshold \u2264 ${preview.threshold ?? 0}`, panelX + panelW / 2, y);
+    y += lineH;
+
+    const pct = preview.hitChance != null ? Math.round(preview.hitChance * 100) : 0;
+    ctx.fillStyle = '#81c784';
+    ctx.fillText(`Hit: ${pct}%`, panelX + panelW / 2, y);
+  } else {
+    y += 8;
+
+    ctx.fillStyle = COLORS.text;
+    ctx.font = '13px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`${preview.unitCount ?? 1} unit${(preview.unitCount ?? 1) > 1 ? 's' : ''}`, panelX + panelW / 2, y);
+    y += lineH;
+
+    if (preview.isGroupMove) {
+      ctx.fillStyle = '#90a4ae';
+      ctx.font = '12px monospace';
+      ctx.fillText('Group move', panelX + panelW / 2, y);
+      y += lineH;
+    }
+
+    ctx.fillStyle = '#90a4ae';
+    ctx.font = '12px monospace';
+    ctx.fillText('Costs 1 AP', panelX + panelW / 2, y);
+  }
 }
 
 function renderButtons(rc: RenderContext, _state: GameState): void {
@@ -479,7 +789,7 @@ export function screenToGrid(
   screenX: number,
   screenY: number,
   flipped: boolean
-): { type: 'grid'; pos: Position } | { type: 'reserve'; player: Player } | { type: 'endTurn' } | { type: 'retreat' } | null {
+): { type: 'grid'; pos: Position; unitIndex: number } | { type: 'reserve'; player: Player } | { type: 'endTurn' } | { type: 'retreat' } | null {
   const { gridOffsetX, gridOffsetY, cellSize, reserveHeight, canvas, buttonBarHeight } = rc;
   const gridTop = gridOffsetY + reserveHeight;
   const gridWidth = cellSize * GRID_COLS;
@@ -515,13 +825,17 @@ export function screenToGrid(
     screenY >= gridTop &&
     screenY < gridTop + cellSize * GRID_ROWS
   ) {
-    let displayCol = Math.floor((screenX - gridOffsetX) / cellSize);
-    let displayRow = GRID_ROWS - 1 - Math.floor((screenY - gridTop) / cellSize);
+    const displayCol = Math.floor((screenX - gridOffsetX) / cellSize);
+    const displayRow = GRID_ROWS - 1 - Math.floor((screenY - gridTop) / cellSize);
 
     const col = flipped ? GRID_COLS - 1 - displayCol : displayCol;
     const row = flipped ? GRID_ROWS - 1 - displayRow : displayRow;
 
-    return { type: 'grid', pos: { col, row } };
+    // Detect which sub-column (unit slot 0-2) was clicked within the cell
+    const cellX = screenX - gridOffsetX - displayCol * cellSize;
+    const unitIndex = Math.min(2, Math.floor(cellX / (cellSize / 3)));
+
+    return { type: 'grid', pos: { col, row }, unitIndex };
   }
 
   return null;

@@ -33,8 +33,8 @@ describe('createInitialState', () => {
 
   test('populates both reserves with mirror armies', () => {
     const state = createInitialState();
-    expect(state.p1Reserve.length).toBe(6);
-    expect(state.p2Reserve.length).toBe(6);
+    expect(state.p1Reserve.length).toBe(3);
+    expect(state.p2Reserve.length).toBe(3);
 
     const countTypes = (units: typeof state.p1Reserve) => ({
       infantry: units.filter(u => u.type === 'infantry').length,
@@ -42,8 +42,8 @@ describe('createInitialState', () => {
       artillery: units.filter(u => u.type === 'artillery').length,
     });
 
-    expect(countTypes(state.p1Reserve)).toEqual({ infantry: 3, cavalry: 2, artillery: 1 });
-    expect(countTypes(state.p2Reserve)).toEqual({ infantry: 3, cavalry: 2, artillery: 1 });
+    expect(countTypes(state.p1Reserve)).toEqual({ infantry: 1, cavalry: 1, artillery: 1 });
+    expect(countTypes(state.p2Reserve)).toEqual({ infantry: 1, cavalry: 1, artillery: 1 });
   });
 
   test('all units start at level 2', () => {

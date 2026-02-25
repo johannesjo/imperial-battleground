@@ -92,3 +92,16 @@ export const BONUS_VALUES: Record<BonusType, number> = {
   'flanking-4': 8,
   'cavalry-charge': 6,
 };
+
+export interface PreviewInfo {
+  readonly type: 'attack' | 'move';
+  // Attack fields
+  readonly selectedUnits?: Unit[];
+  readonly totalDice?: number;
+  readonly bonuses?: BonusType[];
+  readonly threshold?: number;
+  readonly hitChance?: number;
+  // Move fields
+  readonly unitCount?: number;
+  readonly isGroupMove?: boolean;
+}

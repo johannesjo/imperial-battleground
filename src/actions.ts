@@ -2,6 +2,7 @@
 import type { AttackResult, GameState, GridRow, Player, Position, Unit } from './types';
 import { calculateBonuses, calculateThreshold, rollD40Attack, distributeDamage } from './combat';
 import { getSquare, getHomeRow, getReserve } from './game-state';
+import { getValidAttacks } from './rules';
 
 function mapGrid(
   state: GameState,
@@ -81,6 +82,33 @@ export function moveUnit(
   return { ...newState, actionPoints: state.actionPoints - 1 };
 }
 
+/** Move multiple units together from one square to another. Costs 1 AP. */
+export function moveUnits(
+  state: GameState,
+  unitIds: string[],
+  from: Position,
+  to: Position
+): GameState {
+  if (state.actionPoints <= 0) return state;
+  if (unitIds.length === 0) return state;
+
+  const sq = getSquare(state, from);
+  if (!sq) return state;
+
+  const units = unitIds.map(id => sq.units.find(u => u.id === id)).filter((u): u is Unit => !!u);
+  if (units.length !== unitIds.length) return state;
+
+  const distance = Math.abs(to.col - from.col) + Math.abs(to.row - from.row);
+  let newState = state;
+  for (const unit of units) {
+    const movedUnit: Unit = { ...unit, hasMoved: true, movedSquares: distance };
+    newState = removeUnitFromSquare(newState, from, unit.id);
+    newState = addUnitToSquare(newState, to, movedUnit);
+  }
+
+  return { ...newState, actionPoints: state.actionPoints - 1 };
+}
+
 function resetPlayerUnits(state: GameState, player: Player): GameState {
   const grid = mapGrid(state, (sq) => ({
     ...sq,
@@ -127,27 +155,35 @@ function emptyResult(fromSquares: Position[], target: Position): AttackResult {
   };
 }
 
-/** Attack a target square from one or more source squares. Costs 1 AP. */
+/** Attack a target square from one or more source squares. Costs 1 AP.
+ *  If unitIds is provided, only those specific units participate. */
 export function attackSquare(
   state: GameState,
   fromSquares: Position[],
-  target: Position
+  target: Position,
+  unitIds?: string[]
 ): { state: GameState; attackResult: AttackResult } {
   if (state.actionPoints <= 0) {
     return { state, attackResult: emptyResult(fromSquares, target) };
   }
 
-  // Gather eligible attackers grouped by source square
+  // Gather eligible attackers, only from squares that can actually reach the target
   const attackersBySquare = new Map<string, Unit[]>();
   const allAttackers: Unit[] = [];
 
   for (const from of fromSquares) {
+    const reachable = getValidAttacks(state, from);
+    if (!reachable.some(t => t.col === target.col && t.row === target.row)) continue;
+
     const sq = getSquare(state, from);
     if (!sq) continue;
     const key = `${from.col},${from.row}`;
-    const eligible = sq.units.filter(
+    let eligible = sq.units.filter(
       u => u.owner === state.currentPlayer && !u.hasAttacked
     );
+    if (unitIds) {
+      eligible = eligible.filter(u => unitIds.includes(u.id));
+    }
     if (eligible.length > 0) {
       attackersBySquare.set(key, eligible);
       allAttackers.push(...eligible);
@@ -169,7 +205,8 @@ export function attackSquare(
   // Distribute damage among defenders
   const unitDamage = distributeDamage(hits, allAttackers, defenders);
 
-  // Mark attackers as hasAttacked
+  // Mark only participating attackers as hasAttacked
+  const attackerIds = new Set(allAttackers.map(u => u.id));
   let newState: GameState = {
     ...state,
     grid: mapGrid(state, (sq, c, r) => {
@@ -178,7 +215,7 @@ export function attackSquare(
       return {
         ...sq,
         units: sq.units.map(u =>
-          u.owner === state.currentPlayer ? { ...u, hasAttacked: true } : u
+          attackerIds.has(u.id) ? { ...u, hasAttacked: true } : u
         ),
       };
     }),
