@@ -19,11 +19,162 @@ const COLORS = {
   retreatBtn: '#b71c1c',
 };
 
-const UNIT_SYMBOLS: Record<UnitType, string> = {
-  infantry: '\u25A0',
-  cavalry: '\u25B2',
-  artillery: '\u25CF',
-};
+// Canvas-drawn unit icon functions
+function drawInfantry(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number, color: string): void {
+  ctx.save();
+  ctx.fillStyle = color;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = Math.max(1.5, size * 0.08);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  const s = size * 0.4;
+
+  // Head
+  ctx.beginPath();
+  ctx.arc(cx, cy - s * 0.7, s * 0.28, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Body
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - s * 0.42);
+  ctx.lineTo(cx, cy + s * 0.3);
+  ctx.stroke();
+
+  // Arms — one forward holding rifle
+  ctx.beginPath();
+  ctx.moveTo(cx - s * 0.4, cy - s * 0.15);
+  ctx.lineTo(cx, cy - s * 0.2);
+  ctx.lineTo(cx + s * 0.35, cy - s * 0.35);
+  ctx.stroke();
+
+  // Rifle
+  ctx.beginPath();
+  ctx.moveTo(cx + s * 0.2, cy - s * 0.65);
+  ctx.lineTo(cx + s * 0.4, cy - s * 0.15);
+  ctx.stroke();
+
+  // Legs
+  ctx.beginPath();
+  ctx.moveTo(cx, cy + s * 0.3);
+  ctx.lineTo(cx - s * 0.3, cy + s * 0.8);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx, cy + s * 0.3);
+  ctx.lineTo(cx + s * 0.3, cy + s * 0.8);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function drawCavalry(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number, color: string): void {
+  ctx.save();
+  ctx.fillStyle = color;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = Math.max(1.5, size * 0.08);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  const s = size * 0.42;
+
+  // Horse body (ellipse)
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + s * 0.15, s * 0.6, s * 0.25, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Horse neck and head
+  ctx.beginPath();
+  ctx.moveTo(cx + s * 0.4, cy);
+  ctx.quadraticCurveTo(cx + s * 0.55, cy - s * 0.5, cx + s * 0.35, cy - s * 0.7);
+  ctx.lineTo(cx + s * 0.65, cy - s * 0.65);
+  ctx.quadraticCurveTo(cx + s * 0.7, cy - s * 0.45, cx + s * 0.45, cy - s * 0.1);
+  ctx.fill();
+
+  // Horse ear
+  ctx.beginPath();
+  ctx.moveTo(cx + s * 0.4, cy - s * 0.7);
+  ctx.lineTo(cx + s * 0.35, cy - s * 0.9);
+  ctx.lineTo(cx + s * 0.5, cy - s * 0.72);
+  ctx.fill();
+
+  // Legs
+  ctx.beginPath();
+  ctx.moveTo(cx - s * 0.35, cy + s * 0.35);
+  ctx.lineTo(cx - s * 0.4, cy + s * 0.8);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx - s * 0.15, cy + s * 0.35);
+  ctx.lineTo(cx - s * 0.1, cy + s * 0.8);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx + s * 0.15, cy + s * 0.35);
+  ctx.lineTo(cx + s * 0.1, cy + s * 0.8);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx + s * 0.35, cy + s * 0.35);
+  ctx.lineTo(cx + s * 0.4, cy + s * 0.8);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function drawArtillery(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number, color: string): void {
+  ctx.save();
+  ctx.fillStyle = color;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = Math.max(1.5, size * 0.08);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  const s = size * 0.4;
+
+  // Barrel
+  ctx.beginPath();
+  ctx.moveTo(cx - s * 0.7, cy - s * 0.2);
+  ctx.lineTo(cx + s * 0.5, cy - s * 0.2);
+  ctx.lineTo(cx + s * 0.5, cy + s * 0.0);
+  ctx.lineTo(cx - s * 0.5, cy + s * 0.0);
+  ctx.closePath();
+  ctx.fill();
+
+  // Barrel muzzle flare
+  ctx.beginPath();
+  ctx.moveTo(cx + s * 0.5, cy - s * 0.28);
+  ctx.lineTo(cx + s * 0.7, cy - s * 0.28);
+  ctx.lineTo(cx + s * 0.7, cy + s * 0.08);
+  ctx.lineTo(cx + s * 0.5, cy + s * 0.08);
+  ctx.closePath();
+  ctx.fill();
+
+  // Wheel
+  ctx.beginPath();
+  ctx.arc(cx - s * 0.15, cy + s * 0.35, s * 0.35, 0, Math.PI * 2);
+  ctx.stroke();
+  // Wheel spokes
+  for (let a = 0; a < 4; a++) {
+    const angle = (a * Math.PI) / 4;
+    ctx.beginPath();
+    ctx.moveTo(cx - s * 0.15 + Math.cos(angle) * s * 0.1, cy + s * 0.35 + Math.sin(angle) * s * 0.1);
+    ctx.lineTo(cx - s * 0.15 + Math.cos(angle) * s * 0.32, cy + s * 0.35 + Math.sin(angle) * s * 0.32);
+    ctx.stroke();
+  }
+
+  // Trail/support
+  ctx.beginPath();
+  ctx.moveTo(cx - s * 0.5, cy + s * 0.05);
+  ctx.lineTo(cx - s * 0.9, cy + s * 0.55);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function drawUnitIcon(ctx: CanvasRenderingContext2D, type: UnitType, cx: number, cy: number, size: number, color: string): void {
+  switch (type) {
+    case 'infantry': drawInfantry(ctx, cx, cy, size, color); break;
+    case 'cavalry': drawCavalry(ctx, cx, cy, size, color); break;
+    case 'artillery': drawArtillery(ctx, cx, cy, size, color); break;
+  }
+}
 
 export interface RenderContext {
   canvas: HTMLCanvasElement;
@@ -131,19 +282,21 @@ function renderReserve(rc: RenderContext, state: GameState, player: Player, y: n
   const flagText = `\u2691 P${player} RESERVES`;
   ctx.fillText(flagText, gridOffsetX + gridWidth / 2, y + 14);
 
-  const unitSize = 20;
-  const padding = 4;
-  const startX = gridOffsetX + 10;
-  const unitY = y + 36;
+  const unitSize = 24;
+  const padding = 8;
+  const totalWidth = reserve.length * unitSize + (reserve.length - 1) * padding;
+  const startX = gridOffsetX + (gridWidth - totalWidth) / 2;
+  const unitY = y + 28;
 
   reserve.forEach((unit, i) => {
     const ux = startX + i * (unitSize + padding);
+    drawUnitIcon(ctx, unit.type, ux + unitSize / 2, unitY + unitSize / 2 - 2, unitSize, color);
+
     ctx.fillStyle = color;
-    ctx.font = `${unitSize - 4}px monospace`;
-    ctx.textAlign = 'center';
-    ctx.fillText(UNIT_SYMBOLS[unit.type], ux + unitSize / 2, unitY);
     ctx.font = '9px monospace';
-    ctx.fillText(`${unit.level}`, ux + unitSize / 2, unitY + 12);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(`${unit.level}`, ux + unitSize / 2, unitY + unitSize / 2 + 6);
   });
 }
 
@@ -203,22 +356,24 @@ function renderUnitsInSquare(
   cellSize: number
 ): void {
   const maxPerRow = 3;
-  const unitSize = Math.min(cellSize / maxPerRow - 2, 28);
+  const unitSize = Math.min(cellSize / maxPerRow - 4, 32);
+  const levelFontSize = Math.max(9, unitSize * 0.32);
 
   units.forEach((unit, i) => {
     const col = i % maxPerRow;
     const row = Math.floor(i / maxPerRow);
-    const ux = x + 6 + col * (unitSize + 2);
-    const uy = y + 6 + row * (unitSize + 8);
+    const ux = x + 8 + col * (unitSize + 4);
+    const uy = y + 4 + row * (unitSize + levelFontSize + 4);
+    const color = unit.owner === 1 ? COLORS.p1 : COLORS.p2;
 
-    ctx.fillStyle = unit.owner === 1 ? COLORS.p1 : COLORS.p2;
-    ctx.font = `${unitSize}px monospace`;
+    drawUnitIcon(ctx, unit.type, ux + unitSize / 2, uy + unitSize / 2, unitSize, color);
+
+    // Level number below icon
+    ctx.fillStyle = color;
+    ctx.font = `${levelFontSize}px monospace`;
     ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(UNIT_SYMBOLS[unit.type], ux + unitSize / 2, uy + unitSize / 2);
-
-    ctx.font = '10px monospace';
-    ctx.fillText(`${unit.level}`, ux + unitSize / 2, uy + unitSize / 2 + unitSize / 2 + 4);
+    ctx.textBaseline = 'top';
+    ctx.fillText(`${unit.level}`, ux + unitSize / 2, uy + unitSize * 0.85);
   });
 }
 
