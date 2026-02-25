@@ -1,20 +1,17 @@
 // src/rules.ts
 import type { GameState, Position, Unit, Player } from './types';
-import { GRID_COLS, GRID_ROWS, MAX_STACK_SLOTS, UNIT_STACK_COST } from './types';
+import { GRID_COLS, GRID_ROWS, MAX_UNITS_PER_SQUARE } from './types';
 import { getSquare, getHomeRow } from './game-state';
 
 function isInBounds(pos: Position): boolean {
   return pos.col >= 0 && pos.col < GRID_COLS && pos.row >= 0 && pos.row < GRID_ROWS;
 }
 
-function stackUsed(units: Unit[]): number {
-  return units.reduce((sum, u) => sum + UNIT_STACK_COST[u.type], 0);
-}
-
 function canFitInSquare(state: GameState, pos: Position, unit: Unit): boolean {
   const sq = getSquare(state, pos);
   if (!sq) return false;
-  return stackUsed(sq.units) + UNIT_STACK_COST[unit.type] <= MAX_STACK_SLOTS;
+  if (sq.units.length > 0 && sq.units[0]!.owner !== unit.owner) return false;
+  return sq.units.length < MAX_UNITS_PER_SQUARE;
 }
 
 const ORTHOGONAL: readonly Position[] = [
@@ -66,7 +63,7 @@ export function getValidMoves(state: GameState, unit: Unit, from: Position): Pos
         }
       }
       // L-shaped 2-square moves (change direction after first step)
-      if (isInBounds(step1)) {
+      if (isInBounds(step1) && !hasEnemyUnits(state, step1, unit.owner)) {
         for (const dir2 of ORTHOGONAL) {
           if (dir2.col === -dir.col && dir2.row === -dir.row) continue; // no backtracking
           if (dir2.col === dir.col && dir2.row === dir.row) continue; // already handled
@@ -97,7 +94,7 @@ export function canDeploy(state: GameState, player: Player, target: Position): b
   if (!isInBounds(target)) return false;
   const sq = getSquare(state, target);
   if (!sq) return false;
-  return stackUsed(sq.units) < MAX_STACK_SLOTS;
+  return sq.units.length < MAX_UNITS_PER_SQUARE;
 }
 
 function canUnitAttack(unit: Unit): boolean {

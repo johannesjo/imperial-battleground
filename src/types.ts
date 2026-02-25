@@ -71,6 +71,7 @@ export type BonusType =
 export const GRID_COLS = 3;
 export const GRID_ROWS = 4;
 export const MAX_STACK_SLOTS = 6;
+export const MAX_UNITS_PER_SQUARE = 3;
 export const DEFAULT_AP = 6;
 export const BASE_THRESHOLD = 6;
 export const MIN_THRESHOLD = 2;

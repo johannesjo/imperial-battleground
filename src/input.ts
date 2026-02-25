@@ -11,7 +11,7 @@ export type GameAction =
 
 export function setupInput(
   canvas: HTMLCanvasElement,
-  rc: RenderContext,
+  getRc: () => RenderContext,
   flipped: () => boolean,
   onAction: (action: GameAction) => void
 ): void {
@@ -21,7 +21,7 @@ export function setupInput(
     const x = (e.clientX - rect.left) * (canvas.width / rect.width);
     const y = (e.clientY - rect.top) * (canvas.height / rect.height);
 
-    const hit = screenToGrid(rc, x, y, flipped());
+    const hit = screenToGrid(getRc(), x, y, flipped());
 
     if (!hit) {
       onAction({ type: 'tap' });

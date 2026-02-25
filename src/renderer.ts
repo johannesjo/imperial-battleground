@@ -357,6 +357,20 @@ function renderGrid(
       ctx.strokeStyle = COLORS.gridLine;
       ctx.strokeRect(x, y, cellSize, cellSize);
 
+      // Column separator lines (3 fixed columns)
+      ctx.save();
+      ctx.strokeStyle = COLORS.gridLine;
+      ctx.globalAlpha = 0.4;
+      ctx.lineWidth = 0.5;
+      const third = cellSize / 3;
+      ctx.beginPath();
+      ctx.moveTo(x + third, y);
+      ctx.lineTo(x + third, y + cellSize);
+      ctx.moveTo(x + third * 2, y);
+      ctx.lineTo(x + third * 2, y + cellSize);
+      ctx.stroke();
+      ctx.restore();
+
       const sq = state.grid[r]?.[c];
       if (sq && sq.units.length > 0) {
         renderUnitsInSquare(ctx, sq.units, x, y, cellSize, selectedUnitId);
@@ -373,20 +387,18 @@ function renderUnitsInSquare(
   cellSize: number,
   selectedUnitId: string | null = null
 ): void {
-  const maxPerRow = 3;
-  const unitSize = Math.min(cellSize / maxPerRow - 4, 32);
+  const colWidth = cellSize / 3;
+  const unitSize = Math.min(colWidth - 6, cellSize * 0.7);
   const levelFontSize = Math.max(9, unitSize * 0.32);
 
   units.forEach((unit, i) => {
-    const col = i % maxPerRow;
-    const row = Math.floor(i / maxPerRow);
-    const ux = x + 8 + col * (unitSize + 4);
-    const uy = y + 4 + row * (unitSize + levelFontSize + 4);
+    if (i >= 3) return;
+    const cx = x + colWidth * i + colWidth / 2;
+    const cy = y + cellSize / 2 - levelFontSize / 2;
     const isSelected = unit.id === selectedUnitId;
     const baseColor = unit.owner === 1 ? COLORS.p1 : COLORS.p2;
     const color = isSelected ? COLORS.selected : baseColor;
 
-    // Selection glow
     if (isSelected) {
       ctx.save();
       ctx.shadowColor = COLORS.selected;
@@ -394,20 +406,19 @@ function renderUnitsInSquare(
       ctx.fillStyle = COLORS.selected;
       ctx.globalAlpha = 0.2;
       ctx.beginPath();
-      ctx.arc(ux + unitSize / 2, uy + unitSize / 2, unitSize / 2 + 3, 0, Math.PI * 2);
+      ctx.arc(cx, cy, unitSize / 2 + 3, 0, Math.PI * 2);
       ctx.fill();
       ctx.globalAlpha = 1;
       ctx.restore();
     }
 
-    drawUnitIcon(ctx, unit.type, ux + unitSize / 2, uy + unitSize / 2, unitSize, color);
+    drawUnitIcon(ctx, unit.type, cx, cy, unitSize, color);
 
-    // Level number below icon
     ctx.fillStyle = color;
     ctx.font = `${levelFontSize}px monospace`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    ctx.fillText(`${unit.level}`, ux + unitSize / 2, uy + unitSize * 0.85);
+    ctx.fillText(`${unit.level}`, cx, cy + unitSize * 0.42);
   });
 }
 

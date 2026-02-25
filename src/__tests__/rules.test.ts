@@ -90,10 +90,10 @@ describe('getValidMoves', () => {
     });
   });
 
-  test('units cannot move to squares exceeding stack limit', () => {
+  test('units cannot move to squares at max unit count', () => {
     let state = createInitialState();
-    // Fill a square with 6 infantry (6 slots)
-    for (let i = 0; i < 6; i++) {
+    // Fill a square with 3 units (max)
+    for (let i = 0; i < 3; i++) {
       state = placeUnit(state, createUnit('infantry', 1, 2), { col: 1, row: 0 });
     }
     // Try to move another infantry adjacent
@@ -104,6 +104,36 @@ describe('getValidMoves', () => {
     const moveKeys = moves.map(p => `${p.col},${p.row}`);
 
     expect(moveKeys).not.toContain('1,0'); // full square
+  });
+
+  test('infantry cannot move onto square with enemy units', () => {
+    const inf = createUnit('infantry', 1, 2);
+    const enemy = createUnit('infantry', 2, 2);
+    let state = createInitialState();
+    state = placeUnit(state, inf, { col: 1, row: 1 });
+    state = placeUnit(state, enemy, { col: 1, row: 2 });
+
+    const moves = getValidMoves(state, inf, { col: 1, row: 1 });
+    const moveKeys = moves.map(p => `${p.col},${p.row}`);
+
+    expect(moveKeys).not.toContain('1,2');
+  });
+
+  test('cavalry cannot pass through enemy-occupied square', () => {
+    const cav = createUnit('cavalry', 1, 2);
+    const enemy = createUnit('infantry', 2, 2);
+    let state = createInitialState();
+    state = placeUnit(state, cav, { col: 0, row: 0 });
+    // Place enemy on the intermediate square
+    state = placeUnit(state, enemy, { col: 1, row: 0 });
+
+    const moves = getValidMoves(state, cav, { col: 0, row: 0 });
+    const moveKeys = moves.map(p => `${p.col},${p.row}`);
+
+    // Can't reach (2,0) straight through enemy, and L-shapes through (1,0) also blocked
+    expect(moveKeys).not.toContain('2,0');
+    // But can still move to (0,1) directly
+    expect(moveKeys).toContain('0,1');
   });
 
   test('unit that already moved cannot move again', () => {

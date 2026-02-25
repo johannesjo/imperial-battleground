@@ -176,5 +176,5 @@ function draw() {
   render(rc, state, validMoves, validAttacks, isFlipped(), selectedUnitId);
 }
 
-setupInput(canvas, rc, isFlipped, handleAction);
+setupInput(canvas, () => rc, isFlipped, handleAction);
 draw();
