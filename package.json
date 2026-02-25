@@ -5,6 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "bunx --bun vite --port=3000",
+    "build": "bunx --bun vite build",
     "test": "bun test",
     "typecheck": "bunx tsc --noEmit"
   },
