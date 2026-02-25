@@ -197,7 +197,8 @@ export function createRenderContext(canvas: HTMLCanvasElement): RenderContext {
   const statusBarHeight = 48;
   const buttonBarHeight = 56;
   const reserveHeight = 80;
-  const previewPanelWidth = 200;
+  // Hide preview panel on narrow screens (phones), shrink on medium
+  const previewPanelWidth = w < 500 ? 0 : w < 800 ? 140 : 200;
 
   const availableHeight = h - statusBarHeight * 2 - buttonBarHeight - reserveHeight * 2;
   const availableWidth = w - 20 - previewPanelWidth;

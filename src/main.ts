@@ -12,8 +12,11 @@ import { GRID_COLS, D40, ARTILLERY_VULNERABILITY_THRESHOLD, ARTILLERY_VULNERABIL
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 
 function resize() {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = window.innerWidth * dpr;
+  canvas.height = window.innerHeight * dpr;
+  canvas.style.width = window.innerWidth + 'px';
+  canvas.style.height = window.innerHeight + 'px';
 }
 
 window.addEventListener('resize', resize);
