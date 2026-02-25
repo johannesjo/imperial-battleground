@@ -325,7 +325,7 @@ function renderReserve(rc: RenderContext, state: GameState, player: Player, y: n
     }
 
     drawUnitIcon(ctx, unit.type, ux + unitSize / 2, unitY + unitSize / 2 - 2, unitSize, isSelected ? COLORS.selected : color);
-    drawHpPips(ctx, ux + unitSize / 2, unitY + unitSize / 2 + 8, unit.level, isSelected ? COLORS.selected : color, 2);
+    drawHpIcons(ctx, unit.type, ux + unitSize / 2, unitY + unitSize / 2 + 10, unit.level, isSelected ? COLORS.selected : color, 8);
   });
 }
 
@@ -393,15 +393,13 @@ function renderGrid(
   }
 }
 
-function drawHpPips(ctx: CanvasRenderingContext2D, cx: number, y: number, hp: number, color: string, pipRadius: number): void {
-  const pipSpacing = pipRadius * 2.4;
-  const totalWidth = (hp - 1) * pipSpacing;
+function drawHpIcons(ctx: CanvasRenderingContext2D, type: UnitType, cx: number, y: number, hp: number, color: string, iconSize: number): void {
+  const count = Math.min(hp, 3);
+  const spacing = iconSize * 0.9;
+  const totalWidth = (count - 1) * spacing;
   const startX = cx - totalWidth / 2;
-  ctx.fillStyle = color;
-  for (let i = 0; i < hp; i++) {
-    ctx.beginPath();
-    ctx.arc(startX + i * pipSpacing, y, pipRadius, 0, Math.PI * 2);
-    ctx.fill();
+  for (let i = 0; i < count; i++) {
+    drawUnitIcon(ctx, type, startX + i * spacing, y, iconSize, color);
   }
 }
 
@@ -415,12 +413,11 @@ function renderUnitsInSquare(
 ): void {
   const colWidth = cellSize / 3;
   const unitSize = Math.min(colWidth - 6, cellSize * 0.7);
-  const pipRadius = Math.max(2, unitSize * 0.07);
 
   units.forEach((unit, i) => {
     if (i >= 3) return;
     const cx = x + colWidth * i + colWidth / 2;
-    const cy = y + cellSize / 2 - pipRadius * 2;
+    const cy = y + cellSize / 2 - unitSize * 0.15;
     const isSelected = selectedUnitIds.includes(unit.id);
     const baseColor = unit.owner === 1 ? COLORS.p1 : COLORS.p2;
     const color = isSelected ? COLORS.selected : baseColor;
@@ -439,7 +436,7 @@ function renderUnitsInSquare(
     }
 
     drawUnitIcon(ctx, unit.type, cx, cy, unitSize, color);
-    drawHpPips(ctx, cx, cy + unitSize * 0.48, unit.level, color, pipRadius);
+    drawHpIcons(ctx, unit.type, cx, cy + unitSize * 0.5, unit.level, color, unitSize * 0.35);
   });
 }
 
@@ -676,7 +673,7 @@ function renderPreview(rc: RenderContext, preview: PreviewInfo): void {
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
     ctx.fillText(`${UNIT_TYPE_LABELS[unit.type]} ${unit.level}HP`, unitCx + unitIconSize / 2 + 8, y);
-    drawHpPips(ctx, panelX + panelW - 20, y, unit.level, color, 2.5);
+    drawHpIcons(ctx, unit.type, panelX + panelW - 20, y, unit.level, color, 10);
     y += unitIconSize + 6;
   }
 
@@ -689,7 +686,9 @@ function renderPreview(rc: RenderContext, preview: PreviewInfo): void {
       ctx.font = '12px monospace';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(`Melee: ${meleeDice} dice`, panelX + panelW / 2, y);
+      const meleeTypes = new Set(units.filter(u => u.type !== 'artillery').map(u => u.type));
+      const meleeLabel = meleeTypes.size === 1 ? UNIT_TYPE_LABELS[[...meleeTypes][0]!] : 'Melee';
+      ctx.fillText(`${meleeLabel}: ${meleeDice} dice`, panelX + panelW / 2, y);
       y += lineH;
 
       const meleePct = preview.hitChance != null ? Math.round(preview.hitChance * 100) : 0;
@@ -756,7 +755,7 @@ function renderPreview(rc: RenderContext, preview: PreviewInfo): void {
         ctx.textAlign = 'left';
         ctx.textBaseline = 'middle';
         ctx.fillText(`${UNIT_TYPE_LABELS[def.type]} ${def.level}HP`, unitCx + unitIconSize / 2 + 8, y);
-        drawHpPips(ctx, panelX + panelW - 20, y, def.level, dColor, 2.5);
+        drawHpIcons(ctx, def.type, panelX + panelW - 20, y, def.level, dColor, 10);
         y += unitIconSize + 4;
       }
     }
