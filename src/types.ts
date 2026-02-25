@@ -99,6 +99,10 @@ export const BONUS_VALUES: Record<BonusType, number> = {
   'cavalry-charge': 6,
 };
 
+// Artillery is vulnerable: easier to hit and takes bonus damage when attacked
+export const ARTILLERY_VULNERABILITY_THRESHOLD = 4; // +4 to hit threshold (10% easier)
+export const ARTILLERY_VULNERABILITY_DAMAGE = 1;    // +1 bonus hit per artillery defender
+
 export interface PreviewInfo {
   readonly type: 'attack' | 'move';
   // Attack fields
@@ -112,7 +116,9 @@ export interface PreviewInfo {
   readonly artilleryHitChance?: number; // range-based, only when target hovered
   readonly artilleryDistance?: number;
   readonly defenders?: Unit[];
-  readonly flankingArtilleryBonus?: number; // extra damage to artillery defenders
+  readonly flankingArtilleryBonus?: number; // extra damage to artillery defenders from flanking
+  readonly artilleryVulnerabilityBonus?: number; // extra hits from artillery being vulnerable
+  readonly artilleryVulnerabilityThreshold?: number; // threshold boost vs artillery
   // Move fields
   readonly unitCount?: number;
   readonly isGroupMove?: boolean;

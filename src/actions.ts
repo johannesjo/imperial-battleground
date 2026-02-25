@@ -1,5 +1,6 @@
 // src/actions.ts
 import type { AttackResult, GameState, GridRow, Player, Position, Unit } from './types';
+import { ARTILLERY_VULNERABILITY_THRESHOLD, ARTILLERY_VULNERABILITY_DAMAGE } from './types';
 import { calculateBonuses, calculateThreshold, getArtilleryThreshold, rollD40Attack, distributeDamage } from './combat';
 import { getSquare, getHomeRow, getReserve } from './game-state';
 import { getValidAttacks } from './rules';
@@ -198,7 +199,13 @@ export function attackSquare(
 
   // Calculate bonuses and threshold for melee units
   const bonuses = calculateBonuses(attackersBySquare);
-  const threshold = calculateThreshold(bonuses);
+  let threshold = calculateThreshold(bonuses);
+
+  // Artillery defenders are vulnerable: easier to hit
+  const artilleryDefenders = defenders.filter(u => u.type === 'artillery');
+  if (artilleryDefenders.length > 0) {
+    threshold = Math.min(threshold + ARTILLERY_VULNERABILITY_THRESHOLD, 36);
+  }
 
   // Split into melee and artillery dice pools
   const meleeAttackers = allAttackers.filter(u => u.type !== 'artillery');
@@ -220,9 +227,12 @@ export function attackSquare(
   const totalDice = allAttackers.reduce((sum, u) => sum + u.level, 0);
   let hits = meleeHits + artilleryHits;
 
-  // Flanking bonus damage against artillery defenders
+  // Artillery vulnerability: bonus damage per artillery defender
+  const artVulnBonus = artilleryDefenders.length * ARTILLERY_VULNERABILITY_DAMAGE;
+  hits += artVulnBonus;
+
+  // Flanking bonus damage against artillery defenders (stacks with vulnerability)
   const flankingCols = new Set([...attackersBySquare.keys()].map(k => k.split(',')[0]));
-  const artilleryDefenders = defenders.filter(u => u.type === 'artillery');
   const flankingArtilleryBonus = flankingCols.size >= 2 && artilleryDefenders.length > 0
     ? flankingCols.size - 1 // +1 for 2 cols, +2 for 3 cols
     : 0;

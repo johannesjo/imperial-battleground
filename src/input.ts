@@ -4,7 +4,7 @@ import { screenToGrid } from './renderer';
 
 export type GameAction =
   | { type: 'selectGrid'; col: number; row: number; unitIndex: number }
-  | { type: 'selectReserve'; player: 1 | 2 }
+  | { type: 'selectReserve'; player: 1 | 2; unitIndex: number }
   | { type: 'endTurn' }
   | { type: 'retreat' }
   | { type: 'tap' };
@@ -14,7 +14,8 @@ export function setupInput(
   getRc: () => RenderContext,
   flipped: () => boolean,
   onAction: (action: GameAction) => void,
-  onHover?: (pos: { col: number; row: number } | null) => void
+  onHover?: (pos: { col: number; row: number } | null) => void,
+  getReserveCounts?: () => { p1: number; p2: number }
 ): void {
   function handlePointer(e: PointerEvent) {
     e.preventDefault();
@@ -22,7 +23,7 @@ export function setupInput(
     const x = (e.clientX - rect.left) * (canvas.width / rect.width);
     const y = (e.clientY - rect.top) * (canvas.height / rect.height);
 
-    const hit = screenToGrid(getRc(), x, y, flipped());
+    const hit = screenToGrid(getRc(), x, y, flipped(), getReserveCounts?.());
 
     if (!hit) {
       onAction({ type: 'tap' });
@@ -34,7 +35,7 @@ export function setupInput(
         onAction({ type: 'selectGrid', col: hit.pos.col, row: hit.pos.row, unitIndex: hit.unitIndex });
         break;
       case 'reserve':
-        onAction({ type: 'selectReserve', player: hit.player });
+        onAction({ type: 'selectReserve', player: hit.player, unitIndex: hit.unitIndex });
         break;
       case 'endTurn':
         onAction({ type: 'endTurn' });
@@ -51,7 +52,7 @@ export function setupInput(
     const x = (e.clientX - rect.left) * (canvas.width / rect.width);
     const y = (e.clientY - rect.top) * (canvas.height / rect.height);
 
-    const hit = screenToGrid(getRc(), x, y, flipped());
+    const hit = screenToGrid(getRc(), x, y, flipped(), getReserveCounts?.());
     if (hit?.type === 'grid') {
       onHover({ col: hit.pos.col, row: hit.pos.row });
     } else {

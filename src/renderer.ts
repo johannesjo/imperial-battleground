@@ -196,7 +196,7 @@ export function createRenderContext(canvas: HTMLCanvasElement): RenderContext {
 
   const statusBarHeight = 48;
   const buttonBarHeight = 56;
-  const reserveHeight = 60;
+  const reserveHeight = 80;
   const previewPanelWidth = 200;
 
   const availableHeight = h - statusBarHeight * 2 - buttonBarHeight - reserveHeight * 2;
@@ -293,39 +293,31 @@ function renderReserve(rc: RenderContext, state: GameState, player: Player, y: n
   const reserve = player === 1 ? state.p1Reserve : state.p2Reserve;
   const color = player === 1 ? COLORS.p1 : COLORS.p2;
 
-  ctx.fillStyle = color;
-  ctx.font = '11px monospace';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
+  if (reserve.length === 0) return;
 
-  const flagText = `\u2691 P${player} RESERVES`;
-  ctx.fillText(flagText, gridOffsetX + gridWidth / 2, y + 14);
-
-  const unitSize = 24;
-  const padding = 8;
-  const totalWidth = reserve.length * unitSize + (reserve.length - 1) * padding;
-  const startX = gridOffsetX + (gridWidth - totalWidth) / 2;
-  const unitY = y + 28;
+  const { iconSize, padding, startX } = getReserveLayout(gridOffsetX, gridWidth, reserve.length, rc.reserveHeight);
+  const iconCenterY = y + rc.reserveHeight / 2 - 4;
 
   reserve.forEach((unit, i) => {
-    const ux = startX + i * (unitSize + padding);
+    const cx = startX + i * (iconSize + padding) + iconSize / 2;
     const isSelected = selectedUnitIds.includes(unit.id);
+    const unitColor = isSelected ? COLORS.selected : color;
 
     if (isSelected) {
       ctx.save();
       ctx.shadowColor = COLORS.selected;
-      ctx.shadowBlur = 12;
+      ctx.shadowBlur = 14;
       ctx.fillStyle = COLORS.selected;
       ctx.globalAlpha = 0.25;
       ctx.beginPath();
-      ctx.arc(ux + unitSize / 2, unitY + unitSize / 2 - 2, unitSize / 2 + 2, 0, Math.PI * 2);
+      ctx.arc(cx, iconCenterY, iconSize / 2 + 4, 0, Math.PI * 2);
       ctx.fill();
       ctx.globalAlpha = 1;
       ctx.restore();
     }
 
-    drawUnitIcon(ctx, unit.type, ux + unitSize / 2, unitY + unitSize / 2 - 2, unitSize, isSelected ? COLORS.selected : color);
-    drawHpIcons(ctx, unit.type, ux + unitSize / 2, unitY + unitSize / 2 + 10, unit.level, isSelected ? COLORS.selected : color, 8);
+    drawUnitIcon(ctx, unit.type, cx, iconCenterY, iconSize, unitColor);
+    drawHpIcons(ctx, unit.type, cx, iconCenterY + iconSize * 0.45, unit.level, unitColor, Math.max(6, iconSize * 0.25));
   });
 }
 
@@ -412,15 +404,20 @@ function renderUnitsInSquare(
   selectedUnitIds: string[] = []
 ): void {
   const colWidth = cellSize / 3;
-  const unitSize = Math.min(colWidth - 6, cellSize * 0.7);
+  const maxLevel = 3;
+  const gap = 2;
+  const iconSize = Math.min(colWidth - 6, (cellSize - (maxLevel - 1) * gap) / maxLevel);
 
   units.forEach((unit, i) => {
     if (i >= 3) return;
     const cx = x + colWidth * i + colWidth / 2;
-    const cy = y + cellSize / 2 - unitSize * 0.15;
     const isSelected = selectedUnitIds.includes(unit.id);
     const baseColor = unit.owner === 1 ? COLORS.p1 : COLORS.p2;
     const color = isSelected ? COLORS.selected : baseColor;
+
+    // Stack height for this unit
+    const stackH = unit.level * iconSize + (unit.level - 1) * gap;
+    const startY = y + (cellSize - stackH) / 2;
 
     if (isSelected) {
       ctx.save();
@@ -428,15 +425,17 @@ function renderUnitsInSquare(
       ctx.shadowBlur = 10;
       ctx.fillStyle = COLORS.selected;
       ctx.globalAlpha = 0.2;
-      ctx.beginPath();
-      ctx.arc(cx, cy, unitSize / 2 + 3, 0, Math.PI * 2);
+      roundRect(ctx, cx - iconSize / 2 - 3, startY - 3, iconSize + 6, stackH + 6, 4);
       ctx.fill();
       ctx.globalAlpha = 1;
       ctx.restore();
     }
 
-    drawUnitIcon(ctx, unit.type, cx, cy, unitSize, color);
-    drawHpIcons(ctx, unit.type, cx, cy + unitSize * 0.5, unit.level, color, unitSize * 0.35);
+    // Draw level-count stacked icons (top to bottom)
+    for (let lvl = 0; lvl < unit.level; lvl++) {
+      const iconY = startY + lvl * (iconSize + gap) + iconSize / 2;
+      drawUnitIcon(ctx, unit.type, cx, iconY, iconSize, color);
+    }
   });
 }
 
@@ -635,6 +634,8 @@ function renderPreview(rc: RenderContext, preview: PreviewInfo): void {
     if (meleeDice > 0) contentH += lineH * 2; // melee dice + hit%
     if (artDice > 0) contentH += lineH * 2;    // art dice + hit%
     if (bonuses.length > 0) contentH += 6 + bonuses.length * lineH;
+    if (preview.artilleryVulnerabilityThreshold) contentH += lineH;
+    if (preview.artilleryVulnerabilityBonus) contentH += lineH;
     if (preview.flankingArtilleryBonus) contentH += lineH;
     if (defenders.length > 0) contentH += 10 + 16 + defenders.length * (unitIconSize + 4);
   } else {
@@ -727,6 +728,22 @@ function renderPreview(rc: RenderContext, preview: PreviewInfo): void {
         ctx.fillText(`\u2605 ${BONUS_LABELS[bonus]} +${BONUS_VALUES[bonus]}`, panelX + panelW / 2, y);
         y += lineH;
       }
+    }
+
+    // Artillery vulnerability bonuses
+    if (preview.artilleryVulnerabilityThreshold) {
+      ctx.fillStyle = '#ff8a65';
+      ctx.font = '11px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(`\u2605 Vuln. cannon +${preview.artilleryVulnerabilityThreshold}`, panelX + panelW / 2, y);
+      y += lineH;
+    }
+    if (preview.artilleryVulnerabilityBonus) {
+      ctx.fillStyle = '#ff8a65';
+      ctx.font = '11px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(`\u2605 Bonus dmg +${preview.artilleryVulnerabilityBonus}`, panelX + panelW / 2, y);
+      y += lineH;
     }
 
     // Flanking artillery bonus
@@ -834,12 +851,34 @@ export function renderGameOver(rc: RenderContext, winner: Player): void {
   ctx.fillText('Tap to play again', canvas.width / 2, canvas.height / 2 + 20);
 }
 
+function getReserveLayout(gridOffsetX: number, gridWidth: number, count: number, reserveHeight: number): { iconSize: number; padding: number; startX: number; gap: number; topPad: number } {
+  const topPad = 6;
+  const botPad = 6;
+  const gap = 4;
+  const maxLevel = 3;
+  const availH = reserveHeight - topPad - botPad;
+  const iconSize = Math.min(40, Math.floor((availH - (maxLevel - 1) * gap) / maxLevel));
+  const padding = Math.max(6, iconSize * 0.35);
+  const totalWidth = count * iconSize + (count - 1) * padding;
+  const startX = gridOffsetX + (gridWidth - totalWidth) / 2;
+  return { iconSize, padding, startX, gap, topPad };
+}
+
+function getReserveUnitIndex(screenX: number, gridOffsetX: number, gridWidth: number, count: number, reserveHeight: number): number {
+  if (count <= 0) return 0;
+  const { iconSize, padding, startX } = getReserveLayout(gridOffsetX, gridWidth, count, reserveHeight);
+  const relX = screenX - startX;
+  const idx = Math.floor(relX / (iconSize + padding));
+  return Math.max(0, Math.min(count - 1, idx));
+}
+
 export function screenToGrid(
   rc: RenderContext,
   screenX: number,
   screenY: number,
-  flipped: boolean
-): { type: 'grid'; pos: Position; unitIndex: number } | { type: 'reserve'; player: Player } | { type: 'endTurn' } | { type: 'retreat' } | null {
+  flipped: boolean,
+  reserveCounts?: { p1: number; p2: number }
+): { type: 'grid'; pos: Position; unitIndex: number } | { type: 'reserve'; player: Player; unitIndex: number } | { type: 'endTurn' } | { type: 'retreat' } | null {
   const { gridOffsetX, gridOffsetY, cellSize, reserveHeight, canvas, buttonBarHeight } = rc;
   const gridTop = gridOffsetY + reserveHeight;
   const gridWidth = cellSize * GRID_COLS;
@@ -856,7 +895,9 @@ export function screenToGrid(
     screenY >= gridOffsetY &&
     screenY < gridOffsetY + reserveHeight
   ) {
-    return { type: 'reserve', player: flipped ? 1 : 2 };
+    const player: Player = flipped ? 1 : 2;
+    const unitIndex = getReserveUnitIndex(screenX, gridOffsetX, gridWidth, reserveCounts ? (player === 1 ? reserveCounts.p1 : reserveCounts.p2) : 0, reserveHeight);
+    return { type: 'reserve', player, unitIndex };
   }
 
   const bottomReserveY = gridOffsetY + reserveHeight + cellSize * GRID_ROWS;
@@ -866,7 +907,9 @@ export function screenToGrid(
     screenY >= bottomReserveY &&
     screenY < bottomReserveY + reserveHeight
   ) {
-    return { type: 'reserve', player: flipped ? 2 : 1 };
+    const player: Player = flipped ? 2 : 1;
+    const unitIndex = getReserveUnitIndex(screenX, gridOffsetX, gridWidth, reserveCounts ? (player === 1 ? reserveCounts.p1 : reserveCounts.p2) : 0, reserveHeight);
+    return { type: 'reserve', player, unitIndex };
   }
 
   if (

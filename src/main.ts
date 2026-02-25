@@ -7,7 +7,7 @@ import { calculateBonuses, calculateThreshold, getArtilleryThreshold } from './c
 import { createRenderContext, render, renderHandoff, renderGameOver } from './renderer';
 import { setupInput } from './input';
 import type { GameAction } from './input';
-import { GRID_COLS, D40 } from './types';
+import { GRID_COLS, D40, ARTILLERY_VULNERABILITY_THRESHOLD, ARTILLERY_VULNERABILITY_DAMAGE } from './types';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 
@@ -143,6 +143,10 @@ function computePreview(): PreviewInfo | null {
     let artilleryDistance: number | undefined;
     let defenders: Unit[] | undefined;
     let flankingArtilleryBonus: number | undefined;
+    let artilleryVulnerabilityBonus: number | undefined;
+    let artilleryVulnerabilityThreshold: number | undefined;
+    let effectiveThreshold = threshold;
+    let effectiveHitChance = hitChance;
 
     const hoverTarget = hoveredPos && validAttacks.some(a => a.col === hoveredPos!.col && a.row === hoveredPos!.row)
       ? hoveredPos
@@ -151,6 +155,15 @@ function computePreview(): PreviewInfo | null {
     if (hoverTarget) {
       const targetSq = getSquare(state, { col: hoverTarget.col, row: hoverTarget.row });
       defenders = targetSq?.units.filter(u => u.owner !== state.currentPlayer) ?? [];
+
+      // Artillery vulnerability: higher hit chance and bonus damage
+      const artDefenders = defenders.filter(u => u.type === 'artillery');
+      if (artDefenders.length > 0) {
+        artilleryVulnerabilityThreshold = ARTILLERY_VULNERABILITY_THRESHOLD;
+        effectiveThreshold = Math.min(threshold + ARTILLERY_VULNERABILITY_THRESHOLD, 36);
+        effectiveHitChance = meleeDice > 0 ? effectiveThreshold / D40 : 0;
+        artilleryVulnerabilityBonus = artDefenders.length * ARTILLERY_VULNERABILITY_DAMAGE;
+      }
 
       // Artillery distance from first artillery square
       if (artilleryDice > 0) {
@@ -165,9 +178,8 @@ function computePreview(): PreviewInfo | null {
         }
       }
 
-      // Flanking bonus vs artillery defenders
+      // Flanking bonus vs artillery defenders (stacks with vulnerability)
       const flankingCols = new Set([...attackersBySquare.keys()].map(k => k.split(',')[0]));
-      const artDefenders = defenders.filter(u => u.type === 'artillery');
       if (flankingCols.size >= 2 && artDefenders.length > 0) {
         flankingArtilleryBonus = flankingCols.size - 1;
       }
@@ -178,14 +190,16 @@ function computePreview(): PreviewInfo | null {
       selectedUnits,
       totalDice,
       bonuses,
-      threshold,
-      hitChance,
+      threshold: effectiveThreshold,
+      hitChance: effectiveHitChance,
       meleeDice,
       artilleryDice,
       artilleryHitChance,
       artilleryDistance,
       defenders,
       flankingArtilleryBonus,
+      artilleryVulnerabilityBonus,
+      artilleryVulnerabilityThreshold,
     };
   }
 
@@ -227,8 +241,9 @@ function handleAction(action: GameAction) {
       const reserve = getReserve(state, state.currentPlayer);
       if (reserve.length === 0) break;
 
+      const reserveUnit = reserve[action.unitIndex] ?? reserve[0]!;
       deployMode = true;
-      selectedUnitIds = [reserve[0]!.id];
+      selectedUnitIds = [reserveUnit.id];
       selectedSquares = [];
       validMoves = [];
       validAttacks = [];
@@ -393,5 +408,8 @@ function handleHover(pos: { col: number; row: number } | null): void {
   }
 }
 
-setupInput(canvas, () => rc, isFlipped, handleAction, handleHover);
+setupInput(canvas, () => rc, isFlipped, handleAction, handleHover, () => ({
+  p1: state.p1Reserve.length,
+  p2: state.p2Reserve.length,
+}));
 draw();
