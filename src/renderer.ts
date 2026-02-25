@@ -325,12 +325,7 @@ function renderReserve(rc: RenderContext, state: GameState, player: Player, y: n
     }
 
     drawUnitIcon(ctx, unit.type, ux + unitSize / 2, unitY + unitSize / 2 - 2, unitSize, isSelected ? COLORS.selected : color);
-
-    ctx.fillStyle = isSelected ? COLORS.selected : color;
-    ctx.font = '9px monospace';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText(`${unit.level}`, ux + unitSize / 2, unitY + unitSize / 2 + 6);
+    drawHpPips(ctx, ux + unitSize / 2, unitY + unitSize / 2 + 8, unit.level, isSelected ? COLORS.selected : color, 2);
   });
 }
 
@@ -398,6 +393,18 @@ function renderGrid(
   }
 }
 
+function drawHpPips(ctx: CanvasRenderingContext2D, cx: number, y: number, hp: number, color: string, pipRadius: number): void {
+  const pipSpacing = pipRadius * 2.4;
+  const totalWidth = (hp - 1) * pipSpacing;
+  const startX = cx - totalWidth / 2;
+  ctx.fillStyle = color;
+  for (let i = 0; i < hp; i++) {
+    ctx.beginPath();
+    ctx.arc(startX + i * pipSpacing, y, pipRadius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
 function renderUnitsInSquare(
   ctx: CanvasRenderingContext2D,
   units: Unit[],
@@ -408,12 +415,12 @@ function renderUnitsInSquare(
 ): void {
   const colWidth = cellSize / 3;
   const unitSize = Math.min(colWidth - 6, cellSize * 0.7);
-  const levelFontSize = Math.max(9, unitSize * 0.32);
+  const pipRadius = Math.max(2, unitSize * 0.07);
 
   units.forEach((unit, i) => {
     if (i >= 3) return;
     const cx = x + colWidth * i + colWidth / 2;
-    const cy = y + cellSize / 2 - levelFontSize / 2;
+    const cy = y + cellSize / 2 - pipRadius * 2;
     const isSelected = selectedUnitIds.includes(unit.id);
     const baseColor = unit.owner === 1 ? COLORS.p1 : COLORS.p2;
     const color = isSelected ? COLORS.selected : baseColor;
@@ -432,12 +439,7 @@ function renderUnitsInSquare(
     }
 
     drawUnitIcon(ctx, unit.type, cx, cy, unitSize, color);
-
-    ctx.fillStyle = color;
-    ctx.font = `${levelFontSize}px monospace`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText(`${unit.level}`, cx, cy + unitSize * 0.42);
+    drawHpPips(ctx, cx, cy + unitSize * 0.48, unit.level, color, pipRadius);
   });
 }
 
@@ -459,7 +461,6 @@ const BONUS_LABELS: Record<string, string> = {
   'combined-arms-3': 'Combined Arms+',
   'flanking-2': 'Flanking',
   'flanking-3': 'Flanking+',
-  'flanking-4': 'Flanking++',
   'cavalry-charge': 'Cavalry Charge',
 };
 
@@ -621,25 +622,28 @@ function renderPreview(rc: RenderContext, preview: PreviewInfo): void {
   const panelTop = statusBarHeight + panelPad;
   const panelMaxH = canvas.height - statusBarHeight * 2 - buttonBarHeight - panelPad * 2;
 
-  // Measure content height
-  const lineH = 22;
+  const lineH = 20;
   const unitIconSize = 20;
   const units = preview.selectedUnits ?? [];
   const bonuses = preview.bonuses ?? [];
+  const meleeDice = preview.meleeDice ?? 0;
+  const artDice = preview.artilleryDice ?? 0;
+  const defenders = preview.defenders ?? [];
 
-  let contentH = 40; // title + spacing
-  contentH += units.length * (unitIconSize + 6); // unit rows
+  // Measure content height
+  let contentH = 40;
+  contentH += units.length * (unitIconSize + 6);
   if (preview.type === 'attack') {
-    contentH += 12; // gap
-    contentH += lineH; // dice line
-    if (bonuses.length > 0) {
-      contentH += 8 + bonuses.length * lineH; // bonus lines
-    }
-    contentH += 12 + lineH * 2; // threshold + hit chance
+    contentH += 10;
+    if (meleeDice > 0) contentH += lineH * 2; // melee dice + hit%
+    if (artDice > 0) contentH += lineH * 2;    // art dice + hit%
+    if (bonuses.length > 0) contentH += 6 + bonuses.length * lineH;
+    if (preview.flankingArtilleryBonus) contentH += lineH;
+    if (defenders.length > 0) contentH += 10 + 16 + defenders.length * (unitIconSize + 4);
   } else {
-    contentH += 12 + lineH * 2; // move info lines
+    contentH += 10 + lineH * 2;
   }
-  contentH += 16; // bottom padding
+  contentH += 16;
 
   const panelH = Math.min(contentH, panelMaxH);
 
@@ -671,20 +675,48 @@ function renderPreview(rc: RenderContext, preview: PreviewInfo): void {
     ctx.font = '12px monospace';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText(`${UNIT_TYPE_LABELS[unit.type]} L${unit.level}`, unitCx + unitIconSize / 2 + 8, y);
+    ctx.fillText(`${UNIT_TYPE_LABELS[unit.type]} ${unit.level}HP`, unitCx + unitIconSize / 2 + 8, y);
+    drawHpPips(ctx, panelX + panelW - 20, y, unit.level, color, 2.5);
     y += unitIconSize + 6;
   }
 
   if (preview.type === 'attack') {
-    y += 8;
+    y += 6;
 
-    // Dice line
-    ctx.fillStyle = '#b0bec5';
-    ctx.font = '13px monospace';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(`${preview.totalDice ?? 0} dice \u00d7 d${D40}`, panelX + panelW / 2, y);
-    y += lineH;
+    // Melee pool
+    if (meleeDice > 0) {
+      ctx.fillStyle = '#b0bec5';
+      ctx.font = '12px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`Melee: ${meleeDice} dice`, panelX + panelW / 2, y);
+      y += lineH;
+
+      const meleePct = preview.hitChance != null ? Math.round(preview.hitChance * 100) : 0;
+      ctx.fillStyle = '#81c784';
+      ctx.fillText(`Hit: ${meleePct}%`, panelX + panelW / 2, y);
+      y += lineH;
+    }
+
+    // Artillery pool
+    if (artDice > 0) {
+      ctx.fillStyle = '#b0bec5';
+      ctx.font = '12px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(`Cannon: ${artDice} dice`, panelX + panelW / 2, y);
+      y += lineH;
+
+      if (preview.artilleryHitChance != null) {
+        const artPct = Math.round(preview.artilleryHitChance * 100);
+        ctx.fillStyle = '#81c784';
+        ctx.fillText(`${preview.artilleryDistance}f Hit: ${artPct}%`, panelX + panelW / 2, y);
+      } else {
+        ctx.fillStyle = '#90a4ae';
+        ctx.font = '11px monospace';
+        ctx.fillText('Hover target', panelX + panelW / 2, y);
+      }
+      y += lineH;
+    }
 
     // Bonuses
     if (bonuses.length > 0) {
@@ -698,17 +730,36 @@ function renderPreview(rc: RenderContext, preview: PreviewInfo): void {
       }
     }
 
-    // Threshold + hit chance
-    y += 8;
-    ctx.fillStyle = COLORS.text;
-    ctx.font = '13px monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText(`Threshold \u2264 ${preview.threshold ?? 0}`, panelX + panelW / 2, y);
-    y += lineH;
+    // Flanking artillery bonus
+    if (preview.flankingArtilleryBonus) {
+      ctx.fillStyle = '#ff8a65';
+      ctx.font = '11px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(`\u2605 Flank cannon +${preview.flankingArtilleryBonus}`, panelX + panelW / 2, y);
+      y += lineH;
+    }
 
-    const pct = preview.hitChance != null ? Math.round(preview.hitChance * 100) : 0;
-    ctx.fillStyle = '#81c784';
-    ctx.fillText(`Hit: ${pct}%`, panelX + panelW / 2, y);
+    // Defenders (when hovering target)
+    if (defenders.length > 0) {
+      y += 8;
+      ctx.fillStyle = '#ef9a9a';
+      ctx.font = 'bold 11px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('DEFENDERS', panelX + panelW / 2, y);
+      y += 16;
+
+      for (const def of defenders) {
+        const dColor = def.owner === 1 ? COLORS.p1 : COLORS.p2;
+        drawUnitIcon(ctx, def.type, unitCx, y, unitIconSize, dColor);
+        ctx.fillStyle = '#ef9a9a';
+        ctx.font = '12px monospace';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`${UNIT_TYPE_LABELS[def.type]} ${def.level}HP`, unitCx + unitIconSize / 2 + 8, y);
+        drawHpPips(ctx, panelX + panelW - 20, y, def.level, dColor, 2.5);
+        y += unitIconSize + 4;
+      }
+    }
   } else {
     y += 8;
 

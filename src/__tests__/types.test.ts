@@ -20,7 +20,7 @@ describe('Game constants', () => {
   });
 
   test('base threshold is 6 on d40', () => {
-    expect(BASE_THRESHOLD).toBe(6);
+    expect(BASE_THRESHOLD).toBe(10);
     expect(D40).toBe(40);
   });
 
@@ -31,11 +31,10 @@ describe('Game constants', () => {
   });
 
   test('bonus values match original game', () => {
-    expect(BONUS_VALUES['combined-arms-2']).toBe(4);
-    expect(BONUS_VALUES['combined-arms-3']).toBe(6);
-    expect(BONUS_VALUES['flanking-2']).toBe(4);
-    expect(BONUS_VALUES['flanking-3']).toBe(6);
-    expect(BONUS_VALUES['flanking-4']).toBe(8);
+    expect(BONUS_VALUES['combined-arms-2']).toBe(6);
+    expect(BONUS_VALUES['combined-arms-3']).toBe(10);
+    expect(BONUS_VALUES['flanking-2']).toBe(10);
+    expect(BONUS_VALUES['flanking-3']).toBe(20);
     expect(BONUS_VALUES['cavalry-charge']).toBe(6);
   });
 });

@@ -13,7 +13,8 @@ export function setupInput(
   canvas: HTMLCanvasElement,
   getRc: () => RenderContext,
   flipped: () => boolean,
-  onAction: (action: GameAction) => void
+  onAction: (action: GameAction) => void,
+  onHover?: (pos: { col: number; row: number } | null) => void
 ): void {
   function handlePointer(e: PointerEvent) {
     e.preventDefault();
@@ -44,5 +45,20 @@ export function setupInput(
     }
   }
 
+  function handleMove(e: PointerEvent) {
+    if (!onHover) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+    const hit = screenToGrid(getRc(), x, y, flipped());
+    if (hit?.type === 'grid') {
+      onHover({ col: hit.pos.col, row: hit.pos.row });
+    } else {
+      onHover(null);
+    }
+  }
+
   canvas.addEventListener('pointerdown', handlePointer);
+  canvas.addEventListener('pointermove', handleMove);
 }

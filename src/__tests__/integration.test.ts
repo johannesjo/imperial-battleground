@@ -192,9 +192,9 @@ describe('Conquest of the New World combat scenarios', () => {
     expect(winner).toBe(1);
   });
 
-  test('d40 base hit rate: threshold 6 means roll 1-6 hits', () => {
-    // Roll exactly 6 should hit (roll <= threshold)
-    mockRandom([d40Roll(6)]);
+  test('d40 base hit rate: threshold 10 means roll 1-10 hits', () => {
+    // Roll exactly 10 should hit (roll <= threshold)
+    mockRandom([d40Roll(10)]);
     const inf = createUnit('infantry', 1, 1);
     const enemy = createUnit('infantry', 2, 5);
     let state = createInitialState();
@@ -209,8 +209,8 @@ describe('Conquest of the New World combat scenarios', () => {
     );
     expect(hitResult.attackResult.hits).toBe(1);
 
-    // Roll exactly 7 should miss
-    mockRandom([d40Roll(7)]);
+    // Roll exactly 11 should miss
+    mockRandom([d40Roll(11)]);
     const missResult = attackSquare(
       state,
       [{ col: 1, row: 1 }],
@@ -246,19 +246,19 @@ describe('Conquest of the New World combat scenarios', () => {
       { col: 1, row: 2 }
     );
 
-    // 3 types across all squares: combined-arms-3 (+6)
+    // 3 types across all squares: combined-arms-3 (+8)
     expect(result.attackResult.bonuses).toContain('combined-arms-3');
-    // 2 attacking squares: flanking-2 (+4)
+    // 2 attacking columns: flanking-2 (+4)
     expect(result.attackResult.bonuses).toContain('flanking-2');
     // Cavalry moved 1 square: cavalry-charge (+6)
     expect(result.attackResult.bonuses).toContain('cavalry-charge');
 
-    // Threshold: 6 + 6 + 4 + 6 = 22
+    // Threshold: 10 + 10 + 10 + 6 = 36
     const expectedThreshold = BASE_THRESHOLD +
       BONUS_VALUES['combined-arms-3'] +
       BONUS_VALUES['flanking-2'] +
       BONUS_VALUES['cavalry-charge'];
     expect(result.attackResult.threshold).toBe(expectedThreshold);
-    expect(expectedThreshold).toBe(22);
+    expect(expectedThreshold).toBe(36);
   });
 });

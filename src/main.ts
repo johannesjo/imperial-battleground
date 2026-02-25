@@ -3,7 +3,7 @@ import type { AttackResult, GameState, Position, PreviewInfo, Unit } from './typ
 import { createInitialState, getSquare, getReserve, getHomeRow } from './game-state';
 import { getValidMoves, getValidGroupMoves, getValidAttacks, canDeploy } from './rules';
 import { deployUnit, moveUnit, moveUnits, attackSquare, endTurn, confirmHandoff, checkWinCondition } from './actions';
-import { calculateBonuses, calculateThreshold } from './combat';
+import { calculateBonuses, calculateThreshold, getArtilleryThreshold } from './combat';
 import { createRenderContext, render, renderHandoff, renderGameOver } from './renderer';
 import { setupInput } from './input';
 import type { GameAction } from './input';
@@ -25,6 +25,7 @@ let selectedSquares: Position[] = [];
 let validMoves: Position[] = [];
 let validAttacks: Position[] = [];
 let deployMode = false;
+let hoveredPos: { col: number; row: number } | null = null;
 let lastAttackResult: AttackResult | null = null;
 let attackAnimStart = 0;
 const ATTACK_ANIM_DURATION = 2000;
@@ -129,8 +130,48 @@ function computePreview(): PreviewInfo | null {
 
     const bonuses = calculateBonuses(attackersBySquare);
     const threshold = calculateThreshold(bonuses);
-    const totalDice = selectedUnits.reduce((sum, u) => sum + u.level, 0);
-    const hitChance = threshold / D40;
+
+    const meleeUnits = selectedUnits.filter(u => u.type !== 'artillery');
+    const artilleryUnits = selectedUnits.filter(u => u.type === 'artillery');
+    const meleeDice = meleeUnits.reduce((sum, u) => sum + u.level, 0);
+    const artilleryDice = artilleryUnits.reduce((sum, u) => sum + u.level, 0);
+    const totalDice = meleeDice + artilleryDice;
+    const hitChance = meleeDice > 0 ? threshold / D40 : 0;
+
+    // Target-specific info from hover
+    let artilleryHitChance: number | undefined;
+    let artilleryDistance: number | undefined;
+    let defenders: Unit[] | undefined;
+    let flankingArtilleryBonus: number | undefined;
+
+    const hoverTarget = hoveredPos && validAttacks.some(a => a.col === hoveredPos!.col && a.row === hoveredPos!.row)
+      ? hoveredPos
+      : null;
+
+    if (hoverTarget) {
+      const targetSq = getSquare(state, { col: hoverTarget.col, row: hoverTarget.row });
+      defenders = targetSq?.units.filter(u => u.owner !== state.currentPlayer) ?? [];
+
+      // Artillery distance from first artillery square
+      if (artilleryDice > 0) {
+        for (const [key] of attackersBySquare) {
+          const artRow = parseInt(key.split(',')[1]!);
+          const hasArt = attackersBySquare.get(key)!.some(u => u.type === 'artillery');
+          if (hasArt) {
+            artilleryDistance = Math.abs(hoverTarget.row - artRow);
+            artilleryHitChance = getArtilleryThreshold(artilleryDistance) / D40;
+            break;
+          }
+        }
+      }
+
+      // Flanking bonus vs artillery defenders
+      const flankingCols = new Set([...attackersBySquare.keys()].map(k => k.split(',')[0]));
+      const artDefenders = defenders.filter(u => u.type === 'artillery');
+      if (flankingCols.size >= 2 && artDefenders.length > 0) {
+        flankingArtilleryBonus = flankingCols.size - 1;
+      }
+    }
 
     return {
       type: 'attack',
@@ -139,6 +180,12 @@ function computePreview(): PreviewInfo | null {
       bonuses,
       threshold,
       hitChance,
+      meleeDice,
+      artilleryDice,
+      artilleryHitChance,
+      artilleryDistance,
+      defenders,
+      flankingArtilleryBonus,
     };
   }
 
@@ -337,5 +384,14 @@ function draw() {
   render(rc, state, validMoves, validAttacks, isFlipped(), selectedUnitIds, selectedSquares, lastAttackResult, animProgress, preview);
 }
 
-setupInput(canvas, () => rc, isFlipped, handleAction);
+function handleHover(pos: { col: number; row: number } | null): void {
+  const prev = hoveredPos;
+  hoveredPos = pos;
+  // Redraw only if hover changed and we have a selection
+  if (selectedUnitIds.length > 0 && (prev?.col !== pos?.col || prev?.row !== pos?.row)) {
+    draw();
+  }
+}
+
+setupInput(canvas, () => rc, isFlipped, handleAction, handleHover);
 draw();

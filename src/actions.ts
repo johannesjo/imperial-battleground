@@ -1,6 +1,6 @@
 // src/actions.ts
 import type { AttackResult, GameState, GridRow, Player, Position, Unit } from './types';
-import { calculateBonuses, calculateThreshold, rollD40Attack, distributeDamage } from './combat';
+import { calculateBonuses, calculateThreshold, getArtilleryThreshold, rollD40Attack, distributeDamage } from './combat';
 import { getSquare, getHomeRow, getReserve } from './game-state';
 import { getValidAttacks } from './rules';
 
@@ -196,11 +196,37 @@ export function attackSquare(
   const defenders = targetSq.units.filter(u => u.owner !== state.currentPlayer);
   if (defenders.length === 0) return { state, attackResult: emptyResult(fromSquares, target) };
 
-  // Calculate bonuses, threshold, dice, and hits
+  // Calculate bonuses and threshold for melee units
   const bonuses = calculateBonuses(attackersBySquare);
   const threshold = calculateThreshold(bonuses);
+
+  // Split into melee and artillery dice pools
+  const meleeAttackers = allAttackers.filter(u => u.type !== 'artillery');
+  const meleeDice = meleeAttackers.reduce((sum, u) => sum + u.level, 0);
+  const meleeHits = meleeDice > 0 ? rollD40Attack(meleeDice, threshold) : 0;
+
+  // Artillery rolls at distance-based threshold per source square
+  let artilleryHits = 0;
+  for (const [key, units] of attackersBySquare) {
+    const artUnits = units.filter(u => u.type === 'artillery');
+    if (artUnits.length === 0) continue;
+    const artRow = parseInt(key.split(',')[1]!);
+    const distance = Math.abs(target.row - artRow);
+    const artThreshold = getArtilleryThreshold(distance);
+    const artDice = artUnits.reduce((sum, u) => sum + u.level, 0);
+    artilleryHits += rollD40Attack(artDice, artThreshold);
+  }
+
   const totalDice = allAttackers.reduce((sum, u) => sum + u.level, 0);
-  const hits = rollD40Attack(totalDice, threshold);
+  let hits = meleeHits + artilleryHits;
+
+  // Flanking bonus damage against artillery defenders
+  const flankingCols = new Set([...attackersBySquare.keys()].map(k => k.split(',')[0]));
+  const artilleryDefenders = defenders.filter(u => u.type === 'artillery');
+  const flankingArtilleryBonus = flankingCols.size >= 2 && artilleryDefenders.length > 0
+    ? flankingCols.size - 1 // +1 for 2 cols, +2 for 3 cols
+    : 0;
+  hits += flankingArtilleryBonus;
 
   // Distribute damage among defenders
   const unitDamage = distributeDamage(hits, allAttackers, defenders);
