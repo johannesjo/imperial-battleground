@@ -148,3 +148,56 @@ describe('distributeDamage', () => {
     expect(cavDmg?.damage).toBe(2);
   });
 });
+
+describe('combined arms with selective attackers', () => {
+  test('single unit type yields no combined arms', () => {
+    const attackers = new Map<string, Unit[]>();
+    attackers.set('1,1', [createUnit('infantry', 1, 2)]);
+    const bonuses = calculateBonuses(attackers);
+    const hasCombinedArms = bonuses.some(b => b.startsWith('combined-arms'));
+    expect(hasCombinedArms).toBe(false);
+  });
+
+  test('cavalry charge applies with single cavalry', () => {
+    const cav = createUnit('cavalry', 1, 2);
+    cav.hasMoved = true;
+    cav.movedSquares = 1;
+    const attackers = new Map<string, Unit[]>();
+    attackers.set('1,1', [cav]);
+    const bonuses = calculateBonuses(attackers);
+    expect(bonuses).toContain('cavalry-charge');
+    expect(bonuses).not.toContain('combined-arms-2');
+    expect(bonuses).not.toContain('combined-arms-3');
+  });
+
+  test('all bonuses stack: combined-arms-3 + flanking-2 + cavalry-charge', () => {
+    const cav = createUnit('cavalry', 1, 2);
+    cav.hasMoved = true;
+    cav.movedSquares = 1;
+    const attackers = new Map<string, Unit[]>();
+    attackers.set('1,1', [
+      createUnit('infantry', 1, 2),
+      cav,
+      createUnit('artillery', 1, 2),
+    ]);
+    attackers.set('0,1', [createUnit('infantry', 1, 2)]);
+    const bonuses = calculateBonuses(attackers);
+
+    expect(bonuses).toContain('combined-arms-3');
+    expect(bonuses).toContain('flanking-2');
+    expect(bonuses).toContain('cavalry-charge');
+
+    const threshold = calculateThreshold(bonuses);
+    expect(threshold).toBe(BASE_THRESHOLD + 6 + 4 + 6); // 6+6+4+6 = 22
+  });
+
+  test('no cavalry charge when cavalry moved 2 squares', () => {
+    const cav = createUnit('cavalry', 1, 2);
+    cav.hasMoved = true;
+    cav.movedSquares = 2;
+    const attackers = new Map<string, Unit[]>();
+    attackers.set('1,1', [cav]);
+    const bonuses = calculateBonuses(attackers);
+    expect(bonuses).not.toContain('cavalry-charge');
+  });
+});

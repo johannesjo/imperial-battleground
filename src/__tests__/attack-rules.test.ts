@@ -138,3 +138,105 @@ describe('getValidAttacks', () => {
     expect(attacks.length).toBe(0);
   });
 });
+
+describe('getValidAttacks with unitId filter', () => {
+  test('infantry unitId only shows adjacent targets', () => {
+    const inf = createUnit('infantry', 1, 2);
+    const art = createUnit('artillery', 1, 2);
+    const enemy = createUnit('infantry', 2, 2);
+    let state = createInitialState();
+    state = placeUnit(state, inf, { col: 1, row: 1 });
+    state = placeUnit(state, art, { col: 1, row: 1 });
+    state = placeUnit(state, enemy, { col: 1, row: 2 });
+
+    const attacks = getValidAttacks(state, { col: 1, row: 1 }, inf.id);
+    const keys = attacks.map(p => `${p.col},${p.row}`);
+
+    expect(keys).toContain('1,2');
+    // Should NOT include column targets beyond adjacent
+    expect(keys).not.toContain('1,3');
+    expect(keys).not.toContain('1,0');
+  });
+
+  test('artillery unitId only shows column targets', () => {
+    const inf = createUnit('infantry', 1, 2);
+    const art = createUnit('artillery', 1, 2);
+    const enemyNear = createUnit('infantry', 2, 2);
+    const enemyFar = createUnit('infantry', 2, 2);
+    let state = createInitialState();
+    state = placeUnit(state, inf, { col: 1, row: 0 });
+    state = placeUnit(state, art, { col: 1, row: 0 });
+    state = placeUnit(state, enemyNear, { col: 1, row: 1 });
+    state = placeUnit(state, enemyFar, { col: 1, row: 3 });
+
+    const attacks = getValidAttacks(state, { col: 1, row: 0 }, art.id);
+    const keys = attacks.map(p => `${p.col},${p.row}`);
+
+    expect(keys).toContain('1,1');
+    expect(keys).toContain('1,3');
+  });
+
+  test('moved infantry filtered by unitId returns empty', () => {
+    const inf = createUnit('infantry', 1, 2);
+    inf.hasMoved = true;
+    const cav = createUnit('cavalry', 1, 2);
+    const enemy = createUnit('infantry', 2, 2);
+    let state = createInitialState();
+    state = placeUnit(state, inf, { col: 1, row: 1 });
+    state = placeUnit(state, cav, { col: 1, row: 1 });
+    state = placeUnit(state, enemy, { col: 1, row: 2 });
+
+    const attacks = getValidAttacks(state, { col: 1, row: 1 }, inf.id);
+    expect(attacks.length).toBe(0);
+  });
+
+  test('cavalry moved 1 sq filtered by unitId shows adjacent', () => {
+    const cav = createUnit('cavalry', 1, 2);
+    cav.hasMoved = true;
+    cav.movedSquares = 1;
+    const inf = createUnit('infantry', 1, 2);
+    inf.hasMoved = true; // infantry can't attack after moving
+    const enemy = createUnit('infantry', 2, 2);
+    let state = createInitialState();
+    state = placeUnit(state, cav, { col: 1, row: 1 });
+    state = placeUnit(state, inf, { col: 1, row: 1 });
+    state = placeUnit(state, enemy, { col: 1, row: 2 });
+
+    const attacks = getValidAttacks(state, { col: 1, row: 1 }, cav.id);
+    const keys = attacks.map(p => `${p.col},${p.row}`);
+
+    expect(keys).toContain('1,2');
+  });
+
+  test('cavalry moved 2 sq filtered by unitId returns empty', () => {
+    const cav = createUnit('cavalry', 1, 2);
+    cav.hasMoved = true;
+    cav.movedSquares = 2;
+    const enemy = createUnit('infantry', 2, 2);
+    let state = createInitialState();
+    state = placeUnit(state, cav, { col: 1, row: 1 });
+    state = placeUnit(state, enemy, { col: 1, row: 2 });
+
+    const attacks = getValidAttacks(state, { col: 1, row: 1 }, cav.id);
+    expect(attacks.length).toBe(0);
+  });
+
+  test('without unitId, mixed square shows union of all attack ranges', () => {
+    const inf = createUnit('infantry', 1, 2);
+    const art = createUnit('artillery', 1, 2);
+    const enemyAdj = createUnit('infantry', 2, 2);
+    const enemyFar = createUnit('infantry', 2, 2);
+    let state = createInitialState();
+    state = placeUnit(state, inf, { col: 1, row: 0 });
+    state = placeUnit(state, art, { col: 1, row: 0 });
+    state = placeUnit(state, enemyAdj, { col: 1, row: 1 });
+    state = placeUnit(state, enemyFar, { col: 1, row: 3 });
+
+    const attacks = getValidAttacks(state, { col: 1, row: 0 });
+    const keys = attacks.map(p => `${p.col},${p.row}`);
+
+    // Infantry range (adjacent) + artillery range (column)
+    expect(keys).toContain('1,1');
+    expect(keys).toContain('1,3');
+  });
+});
