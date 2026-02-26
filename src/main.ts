@@ -87,19 +87,19 @@ function recalcMoves(): void {
 function recalcAttacks(): void {
   if (selectedUnitIds.length === 0) { validAttacks = []; return; }
 
-  // Union: any target that at least one selected unit can attack
-  const result: Position[] = [];
+  // Intersection: only targets reachable by ALL selected units
+  let result: Position[] | null = null;
   for (const sq of selectedSquares) {
     for (const uid of selectedUnitIds) {
       const targets = getValidAttacks(state, sq, uid);
-      for (const t of targets) {
-        if (!result.some(r => samePos(r, t))) {
-          result.push(t);
-        }
+      if (result === null) {
+        result = [...targets];
+      } else {
+        result = result.filter(r => targets.some(t => samePos(r, t)));
       }
     }
   }
-  validAttacks = result;
+  validAttacks = result ?? [];
 }
 
 function computeSquarePreviews(): void {
