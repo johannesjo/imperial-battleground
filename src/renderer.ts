@@ -633,9 +633,9 @@ function renderInlinePreview(ctx: CanvasRenderingContext2D, preview: SquarePrevi
     const artDice = preview.artilleryDice ?? 0;
     let diceStr: string;
     if (meleeDice > 0 && artDice > 0) {
-      diceStr = `${meleeDice}m ${artDice}a`;
+      diceStr = `${meleeDice} melee ${artDice} art`;
     } else {
-      diceStr = `${totalDice}d`;
+      diceStr = `${totalDice} dice`;
     }
     const pct = preview.hitChancePct ?? 0;
     const pctColor = pct >= 40 ? '#4caf50' : pct >= 20 ? '#ffeb3b' : '#f44336';
@@ -648,9 +648,9 @@ function renderInlinePreview(ctx: CanvasRenderingContext2D, preview: SquarePrevi
     if (totalDice > 0) {
       let diceStr: string;
       if (meleeDice > 0 && artDice > 0) {
-        diceStr = `${meleeDice}m ${artDice}a`;
+        diceStr = `${meleeDice} melee ${artDice} art`;
       } else {
-        diceStr = `${totalDice}d`;
+        diceStr = `${totalDice} dice`;
       }
       drawBottomLabel(ctx, diceStr, '#fff', x, y, cellSize);
     }
