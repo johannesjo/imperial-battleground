@@ -216,9 +216,9 @@ export function drawRadialGradientBg(
   const centerY = height / 2;
   const radius = Math.max(width, height) * 0.7;
   const grad = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
-  grad.addColorStop(0, '#151a28');
+  grad.addColorStop(0, COLORS.bg);
   grad.addColorStop(0.5, '#0f1018');
-  grad.addColorStop(1, COLORS.bg);
+  grad.addColorStop(1, '#151a28');
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, width, height);
 }
