@@ -975,46 +975,57 @@ function renderAttackResult(
       const srcCy = srcScreen.y + cellSize / 2;
 
       if (result.hasArtillery) {
-        // Cannonball with parabolic arc
-        const arcHeight = Math.abs(targetCy - srcCy) * 0.5 + cellSize * 0.4;
-        const bx = srcCx + (targetCx - srcCx) * projT;
-        const by = srcCy + (targetCy - srcCy) * projT - arcHeight * Math.sin(projT * Math.PI);
-        const ballR = cellSize * 0.04;
+        // Cannonball originating from each artillery unit's column slot
+        const gridSq = state.grid[sq.row]?.[sq.col];
+        const colWidth = cellSize / 3;
+        const artUnits = gridSq?.units
+          .map((u, idx) => ({ u, idx }))
+          .filter(({ u }) => u.type === 'artillery' && u.owner === state.currentPlayer) ?? [];
 
-        // Trail dots
-        ctx.save();
-        for (let t = 0; t < 5; t++) {
-          const trailT = Math.max(0, projT - t * 0.04);
-          const tx = srcCx + (targetCx - srcCx) * trailT;
-          const ty = srcCy + (targetCy - srcCy) * trailT - arcHeight * Math.sin(trailT * Math.PI);
-          ctx.globalAlpha = (1 - t / 5) * 0.4;
-          ctx.fillStyle = '#888';
-          ctx.beginPath();
-          ctx.arc(tx, ty, ballR * (1 - t * 0.15), 0, Math.PI * 2);
-          ctx.fill();
-        }
-        ctx.restore();
+        for (const { idx } of artUnits) {
+          const unitCx = srcScreen.x + colWidth * idx + colWidth / 2;
+          const unitCy = srcCy;
 
-        // Cannonball
-        ctx.save();
-        ctx.fillStyle = '#333';
-        ctx.shadowColor = '#ff8800';
-        ctx.shadowBlur = 6;
-        ctx.beginPath();
-        ctx.arc(bx, by, ballR, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
+          const arcHeight = Math.abs(targetCy - unitCy) * 0.5 + cellSize * 0.4;
+          const bx = unitCx + (targetCx - unitCx) * projT;
+          const by = unitCy + (targetCy - unitCy) * projT - arcHeight * Math.sin(projT * Math.PI);
+          const ballR = cellSize * 0.04;
 
-        // Smoke puff at origin (fading)
-        if (projT < 0.5) {
+          // Trail dots
           ctx.save();
-          const smokeR = cellSize * 0.08 * (1 + projT * 2);
-          ctx.globalAlpha = 0.3 * (1 - projT * 2);
-          ctx.fillStyle = '#999';
+          for (let t = 0; t < 5; t++) {
+            const trailT = Math.max(0, projT - t * 0.04);
+            const tx = unitCx + (targetCx - unitCx) * trailT;
+            const ty = unitCy + (targetCy - unitCy) * trailT - arcHeight * Math.sin(trailT * Math.PI);
+            ctx.globalAlpha = (1 - t / 5) * 0.4;
+            ctx.fillStyle = '#888';
+            ctx.beginPath();
+            ctx.arc(tx, ty, ballR * (1 - t * 0.15), 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.restore();
+
+          // Cannonball
+          ctx.save();
+          ctx.fillStyle = '#333';
+          ctx.shadowColor = '#ff8800';
+          ctx.shadowBlur = 6;
           ctx.beginPath();
-          ctx.arc(srcCx, srcCy - cellSize * 0.1, smokeR, 0, Math.PI * 2);
+          ctx.arc(bx, by, ballR, 0, Math.PI * 2);
           ctx.fill();
           ctx.restore();
+
+          // Smoke puff at origin (fading)
+          if (projT < 0.5) {
+            ctx.save();
+            const smokeR = cellSize * 0.08 * (1 + projT * 2);
+            ctx.globalAlpha = 0.3 * (1 - projT * 2);
+            ctx.fillStyle = '#999';
+            ctx.beginPath();
+            ctx.arc(unitCx, unitCy - cellSize * 0.1, smokeR, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+          }
         }
       }
 
