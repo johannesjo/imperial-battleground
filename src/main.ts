@@ -4,7 +4,7 @@ import { createInitialState, getSquare, getReserve, getHomeRow } from './game-st
 import { getValidMoves, getValidGroupMoves, getValidAttacks, canDeploy } from './rules';
 import { deployUnit, moveUnit, moveUnits, attackSquare, endTurn, confirmHandoff, checkWinCondition } from './actions';
 import { calculateBonuses, calculateThreshold, getArtilleryThreshold } from './combat';
-import { createRenderContext, render, renderHandoff, renderGameOver, renderScenarioSelect, screenToScenario } from './renderer';
+import { createRenderContext, render, renderHandoff, renderGameOver, renderScenarioSelect, screenToScenario, setAnimTime } from './renderer';
 import { setupInput } from './input';
 import type { GameAction } from './input';
 import { GRID_COLS, D40, ARTILLERY_VULNERABILITY_THRESHOLD, SCENARIOS } from './types';
@@ -376,6 +376,7 @@ function handleAction(action: GameAction) {
   }
 
   draw();
+  if (needsAnimation()) startAnimLoop();
 }
 
 function attackAnimProgress(): number {
@@ -385,19 +386,54 @@ function attackAnimProgress(): number {
 }
 
 function startAttackAnim(): void {
-  function tick() {
-    draw();
-    if (attackAnimProgress() < 1) {
-      requestAnimationFrame(tick);
-    } else {
-      lastAttackResult = null;
-      draw();
-    }
+  startAnimLoop();
+}
+
+// --- Animation loop ---
+// Runs only when something is animating (selection glow, attack anim, handoff/gameover effects)
+let animLoopRunning = false;
+
+function needsAnimation(): boolean {
+  if (lastAttackResult) return true;
+  if (selectedUnitIds.length > 0) return true;
+  if (validMoves.length > 0 || validAttacks.length > 0) return true;
+  if (state.phase === 'handoff') return true;
+  if (state.phase === 'game-over') return true;
+  if (state.phase === 'scenario-select') return true;
+  return false;
+}
+
+function startAnimLoop(): void {
+  if (animLoopRunning) return;
+  animLoopRunning = true;
+  requestAnimationFrame(animTick);
+}
+
+function stopAnimLoop(): void {
+  animLoopRunning = false;
+}
+
+function animTick(timestamp: number): void {
+  if (!animLoopRunning) return;
+
+  setAnimTime(timestamp / 1000);
+
+  // Check if attack anim is done
+  if (lastAttackResult && attackAnimProgress() >= 1) {
+    lastAttackResult = null;
   }
-  requestAnimationFrame(tick);
+
+  draw();
+
+  if (needsAnimation()) {
+    requestAnimationFrame(animTick);
+  } else {
+    animLoopRunning = false;
+  }
 }
 
 function draw() {
+  setAnimTime(performance.now() / 1000);
   if (state.phase === 'scenario-select') {
     renderScenarioSelect(rc, SCENARIOS);
     return;
@@ -419,3 +455,5 @@ setupInput(canvas, () => rc, isFlipped, handleAction, () => ({
   p2: state.p2Reserve.length,
 }), () => state.phase === 'scenario-select');
 draw();
+// Start animation loop for initial screen (scenario select has subtle effects)
+startAnimLoop();
