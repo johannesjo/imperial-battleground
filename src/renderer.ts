@@ -266,11 +266,17 @@ function renderStatusBar(rc: RenderContext, state: GameState, player: Player, y:
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
 
-  const apDisplay = player === state.currentPlayer
-    ? '\u25CF'.repeat(state.actionPoints) + '\u25CB'.repeat(state.maxActionPoints - state.actionPoints)
-    : '';
+  ctx.fillText(`P${player}`, 12, y + rc.statusBarHeight / 2);
 
-  ctx.fillText(`P${player}  ${apDisplay}`, 12, y + rc.statusBarHeight / 2);
+  if (player === state.currentPlayer) {
+    ctx.fillStyle = '#90a4ae';
+    ctx.font = '11px monospace';
+    ctx.fillText('ACTION POINTS', 50, y + rc.statusBarHeight / 2 - 14);
+    ctx.fillStyle = COLORS.text;
+    const apDisplay = Array(state.actionPoints).fill('\u25CF').concat(Array(state.maxActionPoints - state.actionPoints).fill('\u25CB')).join(' ');
+    ctx.font = '32px monospace';
+    ctx.fillText(apDisplay, 50, y + rc.statusBarHeight / 2 + 10);
+  }
 
   ctx.textAlign = 'right';
   ctx.fillText(`Turn ${state.turnNumber}`, width - 12, y + rc.statusBarHeight / 2);
