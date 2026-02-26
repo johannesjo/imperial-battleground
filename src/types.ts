@@ -133,11 +133,11 @@ export const UNIT_STACK_COST: Record<UnitType, number> = {
 };
 
 // Artillery hit thresholds by distance (out of d40)
-// 1 field (adjacent): 15%, 2 fields: 50%, 3 fields: 30%
+// 1 field (adjacent): 15%, 2 fields: 50%, 3 fields: 15%
 export const ARTILLERY_THRESHOLDS: Record<number, number> = {
   1: 6,   // 6/40 = 15%
   2: 20,  // 20/40 = 50%
-  3: 12,  // 12/40 = 30%
+  3: 6,   // 6/40 = 15%
 };
 
 export const BONUS_VALUES: Record<BonusType, number> = {

@@ -249,9 +249,9 @@ describe('getArtilleryThreshold', () => {
     expect(getArtilleryThreshold(2) / D40).toBeCloseTo(0.5);
   });
 
-  test('distance 3: 30% hit rate', () => {
-    expect(getArtilleryThreshold(3)).toBe(12);
-    expect(getArtilleryThreshold(3) / D40).toBeCloseTo(0.3);
+  test('distance 3: 15% hit rate', () => {
+    expect(getArtilleryThreshold(3)).toBe(6);
+    expect(getArtilleryThreshold(3) / D40).toBeCloseTo(0.15);
   });
 
   test('distance 0 or invalid returns 0', () => {
