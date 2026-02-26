@@ -14,7 +14,6 @@ export function setupInput(
   getRc: () => RenderContext,
   flipped: () => boolean,
   onAction: (action: GameAction) => void,
-  onHover?: (pos: { col: number; row: number } | null) => void,
   getReserveCounts?: () => { p1: number; p2: number },
   rawTapOnly?: () => boolean
 ): void {
@@ -53,20 +52,5 @@ export function setupInput(
     }
   }
 
-  function handleMove(e: PointerEvent) {
-    if (!onHover) return;
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    const hit = screenToGrid(getRc(), x, y, flipped(), getReserveCounts?.());
-    if (hit?.type === 'grid') {
-      onHover({ col: hit.pos.col, row: hit.pos.row });
-    } else {
-      onHover(null);
-    }
-  }
-
   canvas.addEventListener('pointerdown', handlePointer);
-  canvas.addEventListener('pointermove', handleMove);
 }

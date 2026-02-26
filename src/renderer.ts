@@ -1,6 +1,6 @@
 // src/renderer.ts
-import type { AttackResult, BonusType, GameState, Player, Position, PreviewInfo, Scenario, Square, SquarePreview, Unit, UnitType } from './types';
-import { GRID_COLS, GRID_ROWS, BONUS_VALUES, D40 } from './types';
+import type { AttackResult, GameState, Player, Position, Scenario, SquarePreview, Unit, UnitType } from './types';
+import { GRID_COLS, GRID_ROWS, BONUS_VALUES } from './types';
 
 const COLORS = {
   bg: '#1a1a2e',
@@ -187,8 +187,6 @@ export interface RenderContext {
   reserveHeight: number;
   statusBarHeight: number;
   buttonBarHeight: number;
-  previewPanelX: number;
-  previewPanelWidth: number;
 }
 
 export function createRenderContext(canvas: HTMLCanvasElement): RenderContext {
@@ -202,11 +200,9 @@ export function createRenderContext(canvas: HTMLCanvasElement): RenderContext {
   const statusBarHeight = 48;
   const buttonBarHeight = 56;
   const reserveHeight = 80;
-  // Hide preview panel on narrow screens (phones), shrink on medium
-  const previewPanelWidth = w < 500 ? 0 : w < 800 ? 140 : 200;
 
   const availableHeight = h - statusBarHeight * 2 - buttonBarHeight - reserveHeight * 2;
-  const availableWidth = w - 20 - previewPanelWidth;
+  const availableWidth = w - 20;
 
   const cellSize = Math.min(
     Math.floor(availableWidth / GRID_COLS),
@@ -216,13 +212,10 @@ export function createRenderContext(canvas: HTMLCanvasElement): RenderContext {
   const gridWidth = cellSize * GRID_COLS;
   const totalGridHeight = cellSize * GRID_ROWS + reserveHeight * 2;
 
-  const gridAreaWidth = w - previewPanelWidth;
-  const gridOffsetX = Math.floor((gridAreaWidth - gridWidth) / 2);
+  const gridOffsetX = Math.floor((w - gridWidth) / 2);
   const gridOffsetY = statusBarHeight + Math.floor((h - statusBarHeight * 2 - buttonBarHeight - totalGridHeight) / 2);
 
-  const previewPanelX = gridAreaWidth;
-
-  return { canvas, ctx, width: w, height: h, cellSize, gridOffsetX, gridOffsetY, reserveHeight, statusBarHeight, buttonBarHeight, previewPanelX, previewPanelWidth };
+  return { canvas, ctx, width: w, height: h, cellSize, gridOffsetX, gridOffsetY, reserveHeight, statusBarHeight, buttonBarHeight };
 }
 
 export function render(
@@ -235,7 +228,6 @@ export function render(
   selectedSquares: Position[] = [],
   attackResult: AttackResult | null = null,
   attackAnimProgress = 0,
-  preview: PreviewInfo | null = null,
   squarePreviews: Map<string, SquarePreview> = new Map()
 ): void {
   const { ctx, width, height } = rc;
@@ -257,10 +249,6 @@ export function render(
 
   if (attackResult && attackAnimProgress < 1) {
     renderAttackResult(rc, attackResult, attackAnimProgress, gridTop, flipped);
-  }
-
-  if (preview) {
-    renderPreview(rc, preview);
   }
 
   renderButtons(rc, state);
@@ -328,6 +316,91 @@ function renderReserve(rc: RenderContext, state: GameState, player: Player, y: n
   });
 }
 
+const COMPACT_BONUS: Record<string, string> = {
+  'combined-arms-2': 'CA',
+  'combined-arms-3': 'CA+',
+  'flanking-2': 'FL',
+  'flanking-3': 'FL+',
+  'cavalry-charge': 'CH',
+};
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function drawBottomLabel(ctx: CanvasRenderingContext2D, text: string, color: string, x: number, y: number, cellSize: number): void {
+  const fontSize = clamp(cellSize * 0.14, 12, 16);
+  ctx.font = `bold ${fontSize}px monospace`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  const textWidth = ctx.measureText(text).width;
+  const pad = 3;
+  const stripH = fontSize + pad * 2;
+  // Semi-transparent background strip
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+  ctx.fillRect(x + (cellSize - textWidth) / 2 - pad, y + cellSize - stripH, textWidth + pad * 2, stripH);
+  ctx.fillStyle = color;
+  ctx.fillText(text, x + cellSize / 2, y + cellSize - pad);
+}
+
+function drawTopLabel(ctx: CanvasRenderingContext2D, text: string, color: string, x: number, y: number, cellSize: number): void {
+  const fontSize = clamp(cellSize * 0.11, 10, 13);
+  ctx.font = `bold ${fontSize}px monospace`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  const textWidth = ctx.measureText(text).width;
+  const pad = 2;
+  const stripH = fontSize + pad * 2;
+  // Semi-transparent background strip
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+  ctx.fillRect(x + (cellSize - textWidth) / 2 - pad, y, textWidth + pad * 2, stripH);
+  ctx.fillStyle = color;
+  ctx.fillText(text, x + cellSize / 2, y + pad);
+}
+
+function renderInlinePreview(ctx: CanvasRenderingContext2D, preview: SquarePreview, x: number, y: number, cellSize: number): void {
+  if (preview.type === 'move') {
+    drawBottomLabel(ctx, '1 AP', '#fff', x, y, cellSize);
+  } else if (preview.type === 'attack') {
+    // Bottom: dice count + color-coded hit%
+    const totalDice = preview.totalDice ?? 0;
+    const meleeDice = preview.meleeDice ?? 0;
+    const artDice = preview.artilleryDice ?? 0;
+    let diceStr: string;
+    if (meleeDice > 0 && artDice > 0) {
+      diceStr = `${meleeDice}m ${artDice}a`;
+    } else {
+      diceStr = `${totalDice}d`;
+    }
+    const pct = preview.hitChancePct ?? 0;
+    const pctColor = pct >= 40 ? '#4caf50' : pct >= 20 ? '#ffeb3b' : '#f44336';
+    // Draw dice in white, then hit% in color
+    const text = `${diceStr} ${pct}%`;
+    // Use single drawBottomLabel with pctColor for the combined text
+    drawBottomLabel(ctx, text, pctColor, x, y, cellSize);
+  } else if (preview.type === 'selected') {
+    // Bottom: dice summary (white)
+    const meleeDice = preview.meleeDice ?? 0;
+    const artDice = preview.artilleryDice ?? 0;
+    const totalDice = preview.totalDice ?? 0;
+    if (totalDice > 0) {
+      let diceStr: string;
+      if (meleeDice > 0 && artDice > 0) {
+        diceStr = `${meleeDice}m ${artDice}a`;
+      } else {
+        diceStr = `${totalDice}d`;
+      }
+      drawBottomLabel(ctx, diceStr, '#fff', x, y, cellSize);
+    }
+    // Top: compact bonus labels (gold)
+    const bonuses = preview.bonuses ?? [];
+    if (bonuses.length > 0) {
+      const bonusStr = bonuses.map(b => `\u2605${COMPACT_BONUS[b] ?? b}`).join(' ');
+      drawTopLabel(ctx, bonusStr, '#ffd54f', x, y, cellSize);
+    }
+  }
+}
+
 function renderGrid(
   rc: RenderContext,
   state: GameState,
@@ -390,22 +463,10 @@ function renderGrid(
         renderUnitsInSquare(ctx, sq.units, x, y, cellSize, selectedUnitIds);
       }
 
-      // Inline square preview text
+      // Inline square preview
       const preview = squarePreviews.get(`${c},${r}`);
       if (preview) {
-        const fontSize = Math.max(12, Math.min(16, cellSize * 0.14));
-        ctx.font = `bold ${fontSize}px monospace`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'bottom';
-
-        if (preview.type === 'move') {
-          ctx.fillStyle = '#fff';
-          ctx.fillText('1 AP', x + cellSize / 2, y + cellSize - 4);
-        } else if (preview.type === 'attack' && preview.hitChancePct != null) {
-          const pct = preview.hitChancePct;
-          ctx.fillStyle = pct >= 40 ? '#4caf50' : pct >= 20 ? '#ffeb3b' : '#f44336';
-          ctx.fillText(`${pct}%`, x + cellSize / 2, y + cellSize - 4);
-        }
+        renderInlinePreview(ctx, preview, x, y, cellSize);
       }
     }
   }
@@ -628,201 +689,6 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   ctx.lineTo(x, y + r);
   ctx.quadraticCurveTo(x, y, x + r, y);
   ctx.closePath();
-}
-
-const UNIT_TYPE_LABELS: Record<UnitType, string> = {
-  infantry: 'Inf',
-  cavalry: 'Cav',
-  artillery: 'Art',
-};
-
-function renderPreview(rc: RenderContext, preview: PreviewInfo): void {
-  const { ctx, previewPanelX, previewPanelWidth, statusBarHeight, height, buttonBarHeight } = rc;
-  const panelPad = 12;
-  const panelX = previewPanelX + panelPad;
-  const panelW = previewPanelWidth - panelPad * 2;
-  const panelTop = statusBarHeight + panelPad;
-  const panelMaxH = height - statusBarHeight * 2 - buttonBarHeight - panelPad * 2;
-
-  const lineH = 20;
-  const unitIconSize = 20;
-  const units = preview.selectedUnits ?? [];
-  const bonuses = preview.bonuses ?? [];
-  const meleeDice = preview.meleeDice ?? 0;
-  const artDice = preview.artilleryDice ?? 0;
-  const defenders = preview.defenders ?? [];
-
-  // Measure content height
-  let contentH = 40;
-  contentH += units.length * (unitIconSize + 6);
-  if (preview.type === 'attack') {
-    contentH += 10;
-    if (meleeDice > 0) contentH += lineH * 2; // melee dice + hit%
-    if (artDice > 0) contentH += lineH * 2;    // art dice + hit%
-    if (bonuses.length > 0) contentH += 6 + bonuses.length * lineH;
-    if (preview.artilleryVulnerabilityThreshold) contentH += lineH;
-    if (preview.artilleryVulnerabilityBonus) contentH += lineH;
-    if (preview.flankingArtilleryBonus) contentH += lineH;
-    if (defenders.length > 0) contentH += 10 + 16 + defenders.length * (unitIconSize + 4);
-  } else {
-    contentH += 10 + lineH * 2;
-  }
-  contentH += 16;
-
-  const panelH = Math.min(contentH, panelMaxH);
-
-  // Panel background
-  ctx.fillStyle = COLORS.reserve;
-  ctx.strokeStyle = preview.type === 'attack' ? '#ff5722' : '#4caf50';
-  ctx.lineWidth = 2;
-  roundRect(ctx, panelX, panelTop, panelW, panelH, 8);
-  ctx.fill();
-  ctx.stroke();
-
-  let y = panelTop + 24;
-
-  // Title
-  ctx.fillStyle = preview.type === 'attack' ? '#ff8a65' : '#81c784';
-  ctx.font = 'bold 14px monospace';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  const titleIcon = preview.type === 'attack' ? '\u2694' : '\u2192';
-  ctx.fillText(`${titleIcon} ${preview.type.toUpperCase()}`, panelX + panelW / 2, y);
-  y += 28;
-
-  // Selected units
-  const unitCx = panelX + 20;
-  for (const unit of units) {
-    const color = unit.owner === 1 ? COLORS.p1 : COLORS.p2;
-    drawUnitIcon(ctx, unit.type, unitCx, y, unitIconSize, color);
-    ctx.fillStyle = COLORS.text;
-    ctx.font = '12px monospace';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(`${UNIT_TYPE_LABELS[unit.type]} ${unit.level}HP`, unitCx + unitIconSize / 2 + 8, y);
-    drawHpIcons(ctx, unit.type, panelX + panelW - 20, y, unit.level, color, 10);
-    y += unitIconSize + 6;
-  }
-
-  if (preview.type === 'attack') {
-    y += 6;
-
-    // Melee pool
-    if (meleeDice > 0) {
-      ctx.fillStyle = '#b0bec5';
-      ctx.font = '12px monospace';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      const meleeTypes = new Set(units.filter(u => u.type !== 'artillery').map(u => u.type));
-      const meleeLabel = meleeTypes.size === 1 ? UNIT_TYPE_LABELS[[...meleeTypes][0]!] : 'Melee';
-      ctx.fillText(`${meleeLabel}: ${meleeDice} dice`, panelX + panelW / 2, y);
-      y += lineH;
-
-      const meleePct = preview.hitChance != null ? Math.round(preview.hitChance * 100) : 0;
-      ctx.fillStyle = '#81c784';
-      ctx.fillText(`Hit: ${meleePct}%`, panelX + panelW / 2, y);
-      y += lineH;
-    }
-
-    // Artillery pool
-    if (artDice > 0) {
-      ctx.fillStyle = '#b0bec5';
-      ctx.font = '12px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText(`Cannon: ${artDice} dice`, panelX + panelW / 2, y);
-      y += lineH;
-
-      if (preview.artilleryHitChance != null) {
-        const artPct = Math.round(preview.artilleryHitChance * 100);
-        ctx.fillStyle = '#81c784';
-        ctx.fillText(`${preview.artilleryDistance}f Hit: ${artPct}%`, panelX + panelW / 2, y);
-      } else {
-        ctx.fillStyle = '#90a4ae';
-        ctx.font = '11px monospace';
-        ctx.fillText('Hover target', panelX + panelW / 2, y);
-      }
-      y += lineH;
-    }
-
-    // Bonuses
-    if (bonuses.length > 0) {
-      y += 4;
-      for (const bonus of bonuses) {
-        ctx.fillStyle = '#ffcc02';
-        ctx.font = '11px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText(`\u2605 ${BONUS_LABELS[bonus]} +${BONUS_VALUES[bonus]}`, panelX + panelW / 2, y);
-        y += lineH;
-      }
-    }
-
-    // Artillery vulnerability bonuses
-    if (preview.artilleryVulnerabilityThreshold) {
-      ctx.fillStyle = '#ff8a65';
-      ctx.font = '11px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText(`\u2605 Vuln. cannon +${preview.artilleryVulnerabilityThreshold}`, panelX + panelW / 2, y);
-      y += lineH;
-    }
-    if (preview.artilleryVulnerabilityBonus) {
-      ctx.fillStyle = '#ff8a65';
-      ctx.font = '11px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText(`\u2605 Bonus dmg +${preview.artilleryVulnerabilityBonus}`, panelX + panelW / 2, y);
-      y += lineH;
-    }
-
-    // Flanking artillery bonus
-    if (preview.flankingArtilleryBonus) {
-      ctx.fillStyle = '#ff8a65';
-      ctx.font = '11px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText(`\u2605 Flank cannon +${preview.flankingArtilleryBonus}`, panelX + panelW / 2, y);
-      y += lineH;
-    }
-
-    // Defenders (when hovering target)
-    if (defenders.length > 0) {
-      y += 8;
-      ctx.fillStyle = '#ef9a9a';
-      ctx.font = 'bold 11px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText('DEFENDERS', panelX + panelW / 2, y);
-      y += 16;
-
-      for (const def of defenders) {
-        const dColor = def.owner === 1 ? COLORS.p1 : COLORS.p2;
-        drawUnitIcon(ctx, def.type, unitCx, y, unitIconSize, dColor);
-        ctx.fillStyle = '#ef9a9a';
-        ctx.font = '12px monospace';
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(`${UNIT_TYPE_LABELS[def.type]} ${def.level}HP`, unitCx + unitIconSize / 2 + 8, y);
-        drawHpIcons(ctx, def.type, panelX + panelW - 20, y, def.level, dColor, 10);
-        y += unitIconSize + 4;
-      }
-    }
-  } else {
-    y += 8;
-
-    ctx.fillStyle = COLORS.text;
-    ctx.font = '13px monospace';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(`${preview.unitCount ?? 1} unit${(preview.unitCount ?? 1) > 1 ? 's' : ''}`, panelX + panelW / 2, y);
-    y += lineH;
-
-    if (preview.isGroupMove) {
-      ctx.fillStyle = '#90a4ae';
-      ctx.font = '12px monospace';
-      ctx.fillText('Group move', panelX + panelW / 2, y);
-      y += lineH;
-    }
-
-    ctx.fillStyle = '#90a4ae';
-    ctx.font = '12px monospace';
-    ctx.fillText('Costs 1 AP', panelX + panelW / 2, y);
-  }
 }
 
 function renderButtons(rc: RenderContext, _state: GameState): void {

@@ -153,30 +153,13 @@ export const ARTILLERY_VULNERABILITY_THRESHOLD = 4; // +4 to hit threshold (10% 
 export const ARTILLERY_VULNERABILITY_DAMAGE = 1;    // +1 bonus hit per artillery defender
 
 export interface SquarePreview {
-  readonly type: 'move' | 'attack';
+  readonly type: 'move' | 'attack' | 'selected';
   readonly apCost?: number;
   readonly hitChancePct?: number;  // 0-100 weighted average
   readonly hasMelee?: boolean;
   readonly hasArtillery?: boolean;
-}
-
-export interface PreviewInfo {
-  readonly type: 'attack' | 'move';
-  // Attack fields
-  readonly selectedUnits?: Unit[];
   readonly totalDice?: number;
-  readonly bonuses?: BonusType[];
-  readonly threshold?: number;       // melee threshold
-  readonly hitChance?: number;        // melee hit chance
   readonly meleeDice?: number;
   readonly artilleryDice?: number;
-  readonly artilleryHitChance?: number; // range-based, only when target hovered
-  readonly artilleryDistance?: number;
-  readonly defenders?: Unit[];
-  readonly flankingArtilleryBonus?: number; // extra damage to artillery defenders from flanking
-  readonly artilleryVulnerabilityBonus?: number; // extra hits from artillery being vulnerable
-  readonly artilleryVulnerabilityThreshold?: number; // threshold boost vs artillery
-  // Move fields
-  readonly unitCount?: number;
-  readonly isGroupMove?: boolean;
+  readonly bonuses?: BonusType[];
 }

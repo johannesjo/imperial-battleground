@@ -1,5 +1,5 @@
 // src/main.ts
-import type { AttackResult, GameState, Position, PreviewInfo, SquarePreview, Unit } from './types';
+import type { AttackResult, BonusType, GameState, Position, SquarePreview, Unit } from './types';
 import { createInitialState, getSquare, getReserve, getHomeRow } from './game-state';
 import { getValidMoves, getValidGroupMoves, getValidAttacks, canDeploy } from './rules';
 import { deployUnit, moveUnit, moveUnits, attackSquare, endTurn, confirmHandoff, checkWinCondition } from './actions';
@@ -7,7 +7,7 @@ import { calculateBonuses, calculateThreshold, getArtilleryThreshold } from './c
 import { createRenderContext, render, renderHandoff, renderGameOver, renderScenarioSelect, screenToScenario } from './renderer';
 import { setupInput } from './input';
 import type { GameAction } from './input';
-import { GRID_COLS, D40, ARTILLERY_VULNERABILITY_THRESHOLD, ARTILLERY_VULNERABILITY_DAMAGE, SCENARIOS } from './types';
+import { GRID_COLS, D40, ARTILLERY_VULNERABILITY_THRESHOLD, SCENARIOS } from './types';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 
@@ -28,7 +28,6 @@ let selectedSquares: Position[] = [];
 let validMoves: Position[] = [];
 let validAttacks: Position[] = [];
 let deployMode = false;
-let hoveredPos: { col: number; row: number } | null = null;
 let lastAttackResult: AttackResult | null = null;
 let attackAnimStart = 0;
 const ATTACK_ANIM_DURATION = 2000;
@@ -110,7 +109,7 @@ function computeSquarePreviews(): void {
     squarePreviews.set(`${m.col},${m.row}`, { type: 'move', apCost: 1 });
   }
 
-  if (validAttacks.length === 0 || selectedUnitIds.length === 0) return;
+  if (selectedUnitIds.length === 0) return;
 
   // Build attackersBySquare for bonus/threshold calculation
   const attackersBySquare = new Map<string, Unit[]>();
@@ -123,8 +122,8 @@ function computeSquarePreviews(): void {
   }
 
   const allAttackers = [...attackersBySquare.values()].flat();
-  const bonuses = calculateBonuses(attackersBySquare);
-  const baseThreshold = calculateThreshold(bonuses);
+  const bonuses: BonusType[] = validAttacks.length > 0 ? calculateBonuses(attackersBySquare) : [];
+  const baseThreshold = validAttacks.length > 0 ? calculateThreshold(bonuses) : 0;
 
   const meleeUnits = allAttackers.filter(u => u.type !== 'artillery');
   const artilleryUnits = allAttackers.filter(u => u.type === 'artillery');
@@ -132,23 +131,61 @@ function computeSquarePreviews(): void {
   const artDice = artilleryUnits.reduce((sum, u) => sum + u.level, 0);
   const totalDice = meleeDice + artDice;
 
+  // Selected square entries (show dice + bonuses on the attacker's own square)
+  if (validAttacks.length > 0) {
+    for (const sq of selectedSquares) {
+      squarePreviews.set(`${sq.col},${sq.row}`, {
+        type: 'selected',
+        totalDice,
+        meleeDice,
+        artilleryDice: artDice,
+        bonuses,
+      });
+    }
+  }
+
   for (const target of validAttacks) {
+    // Determine which selected units can individually reach this target
+    const reachableBySquare = new Map<string, Unit[]>();
+    for (const sq of selectedSquares) {
+      const square = getSquare(state, sq);
+      if (!square) continue;
+      const key = `${sq.col},${sq.row}`;
+      const units = square.units.filter(u => selectedUnitIds.includes(u.id));
+      const reachable = units.filter(u => {
+        const targets = getValidAttacks(state, sq, u.id);
+        return targets.some(t => t.col === target.col && t.row === target.row);
+      });
+      if (reachable.length > 0) reachableBySquare.set(key, reachable);
+    }
+
+    const reachableAttackers = [...reachableBySquare.values()].flat();
+    const tMeleeUnits = reachableAttackers.filter(u => u.type !== 'artillery');
+    const tArtUnits = reachableAttackers.filter(u => u.type === 'artillery');
+    const tMeleeDice = tMeleeUnits.reduce((sum, u) => sum + u.level, 0);
+    const tArtDice = tArtUnits.reduce((sum, u) => sum + u.level, 0);
+    const tTotalDice = tMeleeDice + tArtDice;
+
+    // Bonuses based on units that can reach this target
+    const tBonuses = reachableBySquare.size > 0 ? calculateBonuses(reachableBySquare) : [];
+    const tBaseThreshold = tBonuses.length > 0 ? calculateThreshold(tBonuses) : calculateThreshold([]);
+
     const targetSq = getSquare(state, { col: target.col, row: target.row });
     const defenders = targetSq?.units.filter(u => u.owner !== state.currentPlayer) ?? [];
 
     // Artillery vulnerability: +4 threshold when target has artillery defenders
     const hasArtDefenders = defenders.some(u => u.type === 'artillery');
     const threshold = hasArtDefenders
-      ? Math.min(baseThreshold + ARTILLERY_VULNERABILITY_THRESHOLD, 36)
-      : baseThreshold;
+      ? Math.min(tBaseThreshold + ARTILLERY_VULNERABILITY_THRESHOLD, 36)
+      : tBaseThreshold;
 
-    const meleeChance = meleeDice > 0 ? threshold / D40 : 0;
+    const meleeChance = tMeleeDice > 0 ? threshold / D40 : 0;
 
-    // Artillery: distance-based threshold from first artillery source square
+    // Artillery: distance-based threshold per source square
     let artChance = 0;
-    if (artDice > 0) {
-      for (const [key] of attackersBySquare) {
-        const hasArt = attackersBySquare.get(key)!.some(u => u.type === 'artillery');
+    if (tArtDice > 0) {
+      for (const [key] of reachableBySquare) {
+        const hasArt = reachableBySquare.get(key)!.some(u => u.type === 'artillery');
         if (hasArt) {
           const artRow = parseInt(key.split(',')[1]!);
           const distance = Math.abs(target.row - artRow);
@@ -160,8 +197,8 @@ function computeSquarePreviews(): void {
 
     // Weighted average hit chance
     let hitChancePct: number;
-    if (totalDice > 0) {
-      hitChancePct = Math.round(((meleeDice * meleeChance + artDice * artChance) / totalDice) * 100);
+    if (tTotalDice > 0) {
+      hitChancePct = Math.round(((tMeleeDice * meleeChance + tArtDice * artChance) / tTotalDice) * 100);
     } else {
       hitChancePct = 0;
     }
@@ -169,127 +206,11 @@ function computeSquarePreviews(): void {
     squarePreviews.set(`${target.col},${target.row}`, {
       type: 'attack',
       hitChancePct,
-      hasMelee: meleeDice > 0,
-      hasArtillery: artDice > 0,
+      totalDice: tTotalDice,
+      meleeDice: tMeleeDice,
+      artilleryDice: tArtDice,
     });
   }
-}
-
-function computePreview(): PreviewInfo | null {
-  if (selectedUnitIds.length === 0) return null;
-
-  // Gather selected units
-  const selectedUnits: Unit[] = [];
-  for (const sq of selectedSquares) {
-    const square = getSquare(state, sq);
-    if (!square) continue;
-    for (const unit of square.units) {
-      if (selectedUnitIds.includes(unit.id)) {
-        selectedUnits.push(unit);
-      }
-    }
-  }
-
-  if (selectedUnits.length === 0) return null;
-
-  if (validAttacks.length > 0) {
-    // Build attackersBySquare map for bonus calculation
-    const attackersBySquare = new Map<string, Unit[]>();
-    for (const sq of selectedSquares) {
-      const square = getSquare(state, sq);
-      if (!square) continue;
-      const key = `${sq.col},${sq.row}`;
-      const units = square.units.filter(u => selectedUnitIds.includes(u.id));
-      if (units.length > 0) {
-        attackersBySquare.set(key, units);
-      }
-    }
-
-    const bonuses = calculateBonuses(attackersBySquare);
-    const threshold = calculateThreshold(bonuses);
-
-    const meleeUnits = selectedUnits.filter(u => u.type !== 'artillery');
-    const artilleryUnits = selectedUnits.filter(u => u.type === 'artillery');
-    const meleeDice = meleeUnits.reduce((sum, u) => sum + u.level, 0);
-    const artilleryDice = artilleryUnits.reduce((sum, u) => sum + u.level, 0);
-    const totalDice = meleeDice + artilleryDice;
-    const hitChance = meleeDice > 0 ? threshold / D40 : 0;
-
-    // Target-specific info from hover
-    let artilleryHitChance: number | undefined;
-    let artilleryDistance: number | undefined;
-    let defenders: Unit[] | undefined;
-    let flankingArtilleryBonus: number | undefined;
-    let artilleryVulnerabilityBonus: number | undefined;
-    let artilleryVulnerabilityThreshold: number | undefined;
-    let effectiveThreshold = threshold;
-    let effectiveHitChance = hitChance;
-
-    const hoverTarget = hoveredPos && validAttacks.some(a => a.col === hoveredPos!.col && a.row === hoveredPos!.row)
-      ? hoveredPos
-      : null;
-
-    if (hoverTarget) {
-      const targetSq = getSquare(state, { col: hoverTarget.col, row: hoverTarget.row });
-      defenders = targetSq?.units.filter(u => u.owner !== state.currentPlayer) ?? [];
-
-      // Artillery vulnerability: higher hit chance and bonus damage
-      const artDefenders = defenders.filter(u => u.type === 'artillery');
-      if (artDefenders.length > 0) {
-        artilleryVulnerabilityThreshold = ARTILLERY_VULNERABILITY_THRESHOLD;
-        effectiveThreshold = Math.min(threshold + ARTILLERY_VULNERABILITY_THRESHOLD, 36);
-        effectiveHitChance = meleeDice > 0 ? effectiveThreshold / D40 : 0;
-        artilleryVulnerabilityBonus = artDefenders.length * ARTILLERY_VULNERABILITY_DAMAGE;
-      }
-
-      // Artillery distance from first artillery square
-      if (artilleryDice > 0) {
-        for (const [key] of attackersBySquare) {
-          const artRow = parseInt(key.split(',')[1]!);
-          const hasArt = attackersBySquare.get(key)!.some(u => u.type === 'artillery');
-          if (hasArt) {
-            artilleryDistance = Math.abs(hoverTarget.row - artRow);
-            artilleryHitChance = getArtilleryThreshold(artilleryDistance) / D40;
-            break;
-          }
-        }
-      }
-
-      // Flanking bonus vs artillery defenders (stacks with vulnerability)
-      const flankingCols = new Set([...attackersBySquare.keys()].map(k => k.split(',')[0]));
-      if (flankingCols.size >= 2 && artDefenders.length > 0) {
-        flankingArtilleryBonus = flankingCols.size - 1;
-      }
-    }
-
-    return {
-      type: 'attack',
-      selectedUnits,
-      totalDice,
-      bonuses,
-      threshold: effectiveThreshold,
-      hitChance: effectiveHitChance,
-      meleeDice,
-      artilleryDice,
-      artilleryHitChance,
-      artilleryDistance,
-      defenders,
-      flankingArtilleryBonus,
-      artilleryVulnerabilityBonus,
-      artilleryVulnerabilityThreshold,
-    };
-  }
-
-  if (validMoves.length > 0) {
-    return {
-      type: 'move',
-      selectedUnits,
-      unitCount: selectedUnits.length,
-      isGroupMove: selectedUnits.length > 1,
-    };
-  }
-
-  return null;
 }
 
 function handleAction(action: GameAction) {
@@ -490,20 +411,10 @@ function draw() {
     return;
   }
   const animProgress = lastAttackResult ? attackAnimProgress() : 0;
-  const preview = computePreview();
-  render(rc, state, validMoves, validAttacks, isFlipped(), selectedUnitIds, selectedSquares, lastAttackResult, animProgress, preview, squarePreviews);
+  render(rc, state, validMoves, validAttacks, isFlipped(), selectedUnitIds, selectedSquares, lastAttackResult, animProgress, squarePreviews);
 }
 
-function handleHover(pos: { col: number; row: number } | null): void {
-  const prev = hoveredPos;
-  hoveredPos = pos;
-  // Redraw only if hover changed and we have a selection
-  if (selectedUnitIds.length > 0 && (prev?.col !== pos?.col || prev?.row !== pos?.row)) {
-    draw();
-  }
-}
-
-setupInput(canvas, () => rc, isFlipped, handleAction, handleHover, () => ({
+setupInput(canvas, () => rc, isFlipped, handleAction, () => ({
   p1: state.p1Reserve.length,
   p2: state.p2Reserve.length,
 }), () => state.phase === 'scenario-select');
