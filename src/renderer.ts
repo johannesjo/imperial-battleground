@@ -422,6 +422,35 @@ export function render(
     renderAttackResult(rc, state, attackResult, attackAnimProgress, gridTop, flipped);
   }
 
+  // Deployment hint when board is empty and current player has reserve units
+  const currentReserve = state.currentPlayer === 1 ? state.p1Reserve : state.p2Reserve;
+  const hasUnitsOnGrid = state.grid.some(row =>
+    row.some(sq => sq.units.some(u => u.owner === state.currentPlayer))
+  );
+  if (!hasUnitsOnGrid && currentReserve.length > 0 && !attackResult && selectedUnitIds.length === 0) {
+    const gridCenterX = rc.gridOffsetX + (rc.cellSize * GRID_COLS) / 2;
+    const gridCenterY = gridTop + (rc.cellSize * GRID_ROWS) / 2;
+
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    // Background panel
+    const panelW = Math.min(260, width - 40);
+    const panelH = 56;
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    roundRect(ctx, gridCenterX - panelW / 2, gridCenterY - panelH / 2, panelW, panelH, 8);
+    ctx.fill();
+
+    ctx.font = themeFont(14, 'bold');
+    drawTextWithShadow(ctx, 'Tap a unit in your reserve', gridCenterX, gridCenterY - 10, COLORS.text);
+    ctx.font = themeFont(12);
+    ctx.fillStyle = COLORS.textMuted;
+    ctx.fillText('then tap your home row to deploy', gridCenterX, gridCenterY + 12);
+
+    ctx.restore();
+  }
+
   renderButtons(rc, state);
 }
 
