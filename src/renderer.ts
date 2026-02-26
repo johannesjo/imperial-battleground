@@ -567,8 +567,16 @@ function renderReserve(rc: RenderContext, state: GameState, player: Player, y: n
     }
 
     drawUnitIcon(ctx, unit.type, cx, iconCenterY, iconSize, unitColor);
-    // Level badge instead of stacked mini icons
-    drawLevelBadge(ctx, cx + iconSize * 0.35, iconCenterY + iconSize * 0.35, unit.level, unitColor);
+    // Stacked mini icons showing level
+    const miniSize = Math.max(6, iconSize * 0.25);
+    const miniSpacing = miniSize * 0.9;
+    const miniCount = Math.min(unit.level, 3);
+    const miniTotalW = (miniCount - 1) * miniSpacing;
+    const miniStartX = cx - miniTotalW / 2;
+    const miniY = iconCenterY + iconSize * 0.45;
+    for (let lvl = 0; lvl < miniCount; lvl++) {
+      drawUnitIcon(ctx, unit.type, miniStartX + lvl * miniSpacing, miniY, miniSize, unitColor);
+    }
   });
 }
 
@@ -843,38 +851,40 @@ function renderUnitsInSquare(
   selectedUnitIds: string[] = []
 ): void {
   const colWidth = cellSize / 3;
-  const iconSize = Math.min(colWidth - 6, cellSize * 0.7);
+  const maxLevel = 3;
+  const gap = 2;
+  const iconSize = Math.min(colWidth - 6, (cellSize - (maxLevel - 1) * gap) / maxLevel);
 
   units.forEach((unit, i) => {
     if (i >= 3) return;
     const cx = x + colWidth * i + colWidth / 2;
-    const cy = y + cellSize / 2;
     const isSelected = selectedUnitIds.includes(unit.id);
     const baseColor = playerColor(unit.owner);
     const color = isSelected ? COLORS.selected : baseColor;
 
+    // Stack height for this unit
+    const stackH = unit.level * iconSize + (unit.level - 1) * gap;
+    const startY = y + (cellSize - stackH) / 2;
+
     if (isSelected) {
-      // Pulsing glow ring
+      // Pulsing glow around stack
       const pulse = 0.6 + 0.4 * Math.sin(animTime * 4);
       ctx.save();
       ctx.shadowColor = COLORS.selectedGlow;
       ctx.shadowBlur = 10 + pulse * 8;
-      ctx.strokeStyle = COLORS.selectedGlow;
-      ctx.lineWidth = 2;
-      ctx.globalAlpha = 0.3 + pulse * 0.3;
-      ctx.beginPath();
-      ctx.arc(cx, cy, iconSize / 2 + 2, 0, Math.PI * 2);
-      ctx.stroke();
+      ctx.fillStyle = COLORS.selectedGlow;
+      ctx.globalAlpha = 0.15 + pulse * 0.1;
+      roundRect(ctx, cx - iconSize / 2 - 3, startY - 3, iconSize + 6, stackH + 6, 4);
+      ctx.fill();
       ctx.globalAlpha = 1;
       ctx.shadowBlur = 0;
       ctx.restore();
     }
 
-    drawUnitIcon(ctx, unit.type, cx, cy, iconSize, color);
-
-    // Level badge in bottom-right corner
-    if (unit.level > 1) {
-      drawLevelBadge(ctx, cx + iconSize * 0.3, cy + iconSize * 0.3, unit.level, color);
+    // Draw level-count stacked icons (top to bottom)
+    for (let lvl = 0; lvl < unit.level; lvl++) {
+      const iconY = startY + lvl * (iconSize + gap) + iconSize / 2;
+      drawUnitIcon(ctx, unit.type, cx, iconY, iconSize, color);
     }
   });
 }
