@@ -729,10 +729,6 @@ function renderGrid(
   const gridWidth = cellSize * GRID_COLS;
   const gridHeight = cellSize * GRID_ROWS;
 
-  // Home rows: row 0 = P1, row 3 = P2
-  const p1HomeRow = flipped ? GRID_ROWS - 1 : 0;
-  const p2HomeRow = flipped ? 0 : GRID_ROWS - 1;
-
   for (let r = 0; r < GRID_ROWS; r++) {
     for (let c = 0; c < GRID_COLS; c++) {
       const displayRow = flipped ? GRID_ROWS - 1 - r : r;
@@ -746,13 +742,16 @@ function renderGrid(
       ctx.fillStyle = isAlt ? COLORS.gridBgAlt : COLORS.gridBg;
       ctx.fillRect(x, y, cellSize, cellSize);
 
-      // Home row territory tint
-      const dispRowIdx = GRID_ROWS - 1 - displayRow;
-      if (dispRowIdx === p1HomeRow) {
-        ctx.fillStyle = `rgba(91, 163, 217, 0.06)`;
+      // Territory gradient tint: P1 (blue) at row 0 → P2 (red) at row 3
+      const t = r / (GRID_ROWS - 1); // 0 = P1 home, 1 = P2 home
+      const blueAlpha = (1 - t) * 0.08;
+      const redAlpha = t * 0.08;
+      if (blueAlpha > 0.01) {
+        ctx.fillStyle = `rgba(91, 163, 217, ${blueAlpha})`;
         ctx.fillRect(x, y, cellSize, cellSize);
-      } else if (dispRowIdx === p2HomeRow) {
-        ctx.fillStyle = `rgba(217, 79, 79, 0.06)`;
+      }
+      if (redAlpha > 0.01) {
+        ctx.fillStyle = `rgba(217, 79, 79, ${redAlpha})`;
         ctx.fillRect(x, y, cellSize, cellSize);
       }
 
