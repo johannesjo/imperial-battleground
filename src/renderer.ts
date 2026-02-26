@@ -419,7 +419,7 @@ export function render(
   renderGrid(rc, state, gridTop, validMoves, validAttacks, flipped, selectedUnitIds, selectedSquares, squarePreviews);
 
   if (attackResult && attackAnimProgress < 1) {
-    renderAttackResult(rc, attackResult, attackAnimProgress, gridTop, flipped);
+    renderAttackResult(rc, state, attackResult, attackAnimProgress, gridTop, flipped);
   }
 
   renderButtons(rc, state);
@@ -914,6 +914,7 @@ const BONUS_LABELS: Record<string, string> = {
 
 function renderAttackResult(
   rc: RenderContext,
+  state: GameState,
   result: AttackResult,
   progress: number,
   gridTop: number,
@@ -1018,27 +1019,46 @@ function renderAttackResult(
       }
 
       if (result.hasMelee) {
-        // Sword slash streaks — 3 lines flying from attacker to target
-        for (let s = 0; s < 3; s++) {
-          const offset = (s - 1) * cellSize * 0.08;
-          const slashT = Math.min(1, projT * 1.3 - s * 0.08);
+        // Sword slash streaks originating from each melee unit's column slot
+        const gridSq = state.grid[sq.row]?.[sq.col];
+        const colWidth = cellSize / 3;
+        const meleeUnits = gridSq?.units
+          .map((u, idx) => ({ u, idx }))
+          .filter(({ u }) => u.type !== 'artillery' && u.owner === state.currentPlayer) ?? [];
+
+        for (const { idx } of meleeUnits) {
+          const unitCx = srcScreen.x + colWidth * idx + colWidth / 2;
+          const unitCy = srcCy;
+
+          const slashT = Math.min(1, projT * 1.3);
           if (slashT <= 0) continue;
 
-          const sx = srcCx + (targetCx - srcCx) * slashT;
-          const sy = srcCy + offset + (targetCy - srcCy + offset) * slashT;
+          const sx = unitCx + (targetCx - unitCx) * slashT;
+          const sy = unitCy + (targetCy - unitCy) * slashT;
           const tailT = Math.max(0, slashT - 0.15);
-          const tailX = srcCx + (targetCx - srcCx) * tailT;
-          const tailY = srcCy + offset + (targetCy - srcCy + offset) * tailT;
+          const tailX = unitCx + (targetCx - unitCx) * tailT;
+          const tailY = unitCy + (targetCy - unitCy) * tailT;
 
+          // Main slash
           ctx.save();
           ctx.globalAlpha = 0.7 * (1 - projT);
-          ctx.strokeStyle = s === 1 ? '#fff' : COLORS.textGold;
-          ctx.lineWidth = s === 1 ? 2.5 : 1.5;
+          ctx.strokeStyle = '#fff';
+          ctx.lineWidth = 2.5;
           ctx.lineCap = 'round';
           ctx.beginPath();
           ctx.moveTo(tailX, tailY);
           ctx.lineTo(sx, sy);
           ctx.stroke();
+
+          // Side glints
+          for (const off of [-cellSize * 0.06, cellSize * 0.06]) {
+            ctx.strokeStyle = COLORS.textGold;
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(tailX + off, tailY + off);
+            ctx.lineTo(sx + off, sy + off);
+            ctx.stroke();
+          }
           ctx.restore();
         }
       }
