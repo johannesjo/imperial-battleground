@@ -223,7 +223,7 @@ describe('Conquest of the New World combat scenarios', () => {
   });
 
   test('bonus stacking: combined arms + flanking + charge', () => {
-    // Setup: cavalry charged from one square, infantry+artillery in another
+    // Setup: cavalry charged from one square, infantry in another, artillery in target column
     const cav = createUnit('cavalry', 1, 2);
     cav.hasMoved = true;
     cav.movedSquares = 1;
@@ -231,11 +231,11 @@ describe('Conquest of the New World combat scenarios', () => {
     const art = createUnit('artillery', 1, 2);
     const enemy = createUnit('infantry', 2, 5);
     let state = createInitialState(BATTLE);
-    // Cav in square adjacent to enemy
+    // Cav + Art in square adjacent to enemy (art can fire vertically in col 1)
     state = placeUnit(state, cav, { col: 1, row: 1 });
-    // Inf + Art in another square adjacent to enemy
+    state = placeUnit(state, art, { col: 1, row: 1 });
+    // Inf in another square adjacent to enemy
     state = placeUnit(state, inf, { col: 0, row: 2 });
-    state = placeUnit(state, art, { col: 0, row: 2 });
     // Enemy at target
     state = placeUnit(state, enemy, { col: 1, row: 2 });
 

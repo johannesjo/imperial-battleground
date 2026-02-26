@@ -23,7 +23,7 @@ const ORTHOGONAL: readonly Position[] = [
 
 /** Returns all valid positions a unit can move to from its current position */
 export function getValidMoves(state: GameState, unit: Unit, from: Position): Position[] {
-  if (unit.hasMoved) return [];
+  if (unit.hasMoved || unit.hasAttacked) return [];
 
   const moves: Position[] = [];
   const homeRow = getHomeRow(unit.owner);
@@ -91,7 +91,7 @@ export function getValidMoves(state: GameState, unit: Unit, from: Position): Pos
  *  Artillery cannot participate. All units must not have moved yet. */
 export function getValidGroupMoves(state: GameState, units: Unit[], from: Position): Position[] {
   if (units.length < 2) return [];
-  if (units.some(u => u.hasMoved || u.type === 'artillery')) return [];
+  if (units.some(u => u.hasMoved || u.hasAttacked || u.type === 'artillery')) return [];
 
   const owner = units[0]!.owner;
   const moves: Position[] = [];

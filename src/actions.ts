@@ -173,9 +173,6 @@ export function attackSquare(
   const allAttackers: Unit[] = [];
 
   for (const from of fromSquares) {
-    const reachable = getValidAttacks(state, from);
-    if (!reachable.some(t => t.col === target.col && t.row === target.row)) continue;
-
     const sq = getSquare(state, from);
     if (!sq) continue;
     const key = `${from.col},${from.row}`;
@@ -185,6 +182,11 @@ export function attackSquare(
     if (unitIds) {
       eligible = eligible.filter(u => unitIds.includes(u.id));
     }
+    // Filter to only units that can individually reach the target
+    eligible = eligible.filter(u => {
+      const reachable = getValidAttacks(state, from, u.id);
+      return reachable.some(t => t.col === target.col && t.row === target.row);
+    });
     if (eligible.length > 0) {
       attackersBySquare.set(key, eligible);
       allAttackers.push(...eligible);
