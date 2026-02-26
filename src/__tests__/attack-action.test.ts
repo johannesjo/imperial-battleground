@@ -220,3 +220,228 @@ describe('attackSquare with unitIds filter', () => {
     expect(result.attackResult.totalDice).toBe(0);
   });
 });
+
+describe('per-unit attack reachability', () => {
+  test('cavalry + artillery on same square: only cavalry attacks adjacent off-column target', () => {
+    // Cavalry can attack adjacent, artillery can only attack same column
+    // Target is adjacent but in a different column → only cavalry should contribute
+    const cav = createUnit('cavalry', 1, 2);
+    const art = createUnit('artillery', 1, 3);
+    const enemy = createUnit('infantry', 2, 5);
+    let state = createInitialState(BATTLE);
+    state = placeUnit(state, cav, { col: 1, row: 1 });
+    state = placeUnit(state, art, { col: 1, row: 1 });
+    state = placeUnit(state, enemy, { col: 0, row: 1 }); // adjacent, different column
+
+    const result = attackSquare(
+      state,
+      [{ col: 1, row: 1 }],
+      { col: 0, row: 1 },
+      [cav.id, art.id]
+    );
+
+    expect(result.attackResult.totalDice).toBe(2); // cavalry only
+  });
+
+  test('cavalry + artillery on same square: only artillery attacks distant same-column target', () => {
+    // Target is in same column but not adjacent → only artillery should contribute
+    const cav = createUnit('cavalry', 1, 2);
+    const art = createUnit('artillery', 1, 3);
+    const enemy = createUnit('infantry', 2, 5);
+    let state = createInitialState(BATTLE);
+    state = placeUnit(state, cav, { col: 1, row: 0 });
+    state = placeUnit(state, art, { col: 1, row: 0 });
+    state = placeUnit(state, enemy, { col: 1, row: 3 }); // same column, 3 rows away
+
+    const result = attackSquare(
+      state,
+      [{ col: 1, row: 0 }],
+      { col: 1, row: 3 },
+      [cav.id, art.id]
+    );
+
+    expect(result.attackResult.totalDice).toBe(3); // artillery only
+  });
+
+  test('cavalry + artillery on same square: both attack adjacent same-column target', () => {
+    // Target is adjacent AND in same column → both can contribute
+    const cav = createUnit('cavalry', 1, 2);
+    const art = createUnit('artillery', 1, 3);
+    const enemy = createUnit('infantry', 2, 5);
+    let state = createInitialState(BATTLE);
+    state = placeUnit(state, cav, { col: 1, row: 1 });
+    state = placeUnit(state, art, { col: 1, row: 1 });
+    state = placeUnit(state, enemy, { col: 1, row: 2 }); // adjacent AND same column
+
+    const result = attackSquare(
+      state,
+      [{ col: 1, row: 1 }],
+      { col: 1, row: 2 },
+      [cav.id, art.id]
+    );
+
+    expect(result.attackResult.totalDice).toBe(5); // both: 2 + 3
+  });
+
+  test('infantry + artillery on same square: only infantry attacks adjacent off-column target', () => {
+    const inf = createUnit('infantry', 1, 3);
+    const art = createUnit('artillery', 1, 2);
+    const enemy = createUnit('infantry', 2, 5);
+    let state = createInitialState(BATTLE);
+    state = placeUnit(state, inf, { col: 1, row: 1 });
+    state = placeUnit(state, art, { col: 1, row: 1 });
+    state = placeUnit(state, enemy, { col: 2, row: 1 }); // adjacent, different column
+
+    const result = attackSquare(
+      state,
+      [{ col: 1, row: 1 }],
+      { col: 2, row: 1 },
+      [inf.id, art.id]
+    );
+
+    expect(result.attackResult.totalDice).toBe(3); // infantry only
+  });
+
+  test('infantry + artillery on same square: only artillery attacks distant same-column target', () => {
+    const inf = createUnit('infantry', 1, 3);
+    const art = createUnit('artillery', 1, 2);
+    const enemy = createUnit('infantry', 2, 5);
+    let state = createInitialState(BATTLE);
+    state = placeUnit(state, inf, { col: 1, row: 0 });
+    state = placeUnit(state, art, { col: 1, row: 0 });
+    state = placeUnit(state, enemy, { col: 1, row: 2 }); // same column, 2 rows away
+
+    const result = attackSquare(
+      state,
+      [{ col: 1, row: 0 }],
+      { col: 1, row: 2 },
+      [inf.id, art.id]
+    );
+
+    expect(result.attackResult.totalDice).toBe(2); // artillery only
+  });
+
+  test('infantry + cavalry + artillery: all three attack adjacent same-column target', () => {
+    const inf = createUnit('infantry', 1, 3);
+    const cav = createUnit('cavalry', 1, 2);
+    const art = createUnit('artillery', 1, 1);
+    const enemy = createUnit('infantry', 2, 5);
+    let state = createInitialState(BATTLE);
+    state = placeUnit(state, inf, { col: 1, row: 1 });
+    state = placeUnit(state, cav, { col: 1, row: 1 });
+    state = placeUnit(state, art, { col: 1, row: 1 });
+    state = placeUnit(state, enemy, { col: 1, row: 2 }); // adjacent AND same column
+
+    const result = attackSquare(
+      state,
+      [{ col: 1, row: 1 }],
+      { col: 1, row: 2 },
+      [inf.id, cav.id, art.id]
+    );
+
+    expect(result.attackResult.totalDice).toBe(6); // all: 3 + 2 + 1
+  });
+
+  test('infantry + cavalry + artillery: only melee attacks adjacent off-column target', () => {
+    const inf = createUnit('infantry', 1, 3);
+    const cav = createUnit('cavalry', 1, 2);
+    const art = createUnit('artillery', 1, 1);
+    const enemy = createUnit('infantry', 2, 5);
+    let state = createInitialState(BATTLE);
+    state = placeUnit(state, inf, { col: 1, row: 1 });
+    state = placeUnit(state, cav, { col: 1, row: 1 });
+    state = placeUnit(state, art, { col: 1, row: 1 });
+    state = placeUnit(state, enemy, { col: 0, row: 1 }); // adjacent, different column
+
+    const result = attackSquare(
+      state,
+      [{ col: 1, row: 1 }],
+      { col: 0, row: 1 },
+      [inf.id, cav.id, art.id]
+    );
+
+    expect(result.attackResult.totalDice).toBe(5); // inf + cav only: 3 + 2
+  });
+
+  test('infantry + cavalry + artillery: only artillery attacks distant same-column target', () => {
+    const inf = createUnit('infantry', 1, 3);
+    const cav = createUnit('cavalry', 1, 2);
+    const art = createUnit('artillery', 1, 1);
+    const enemy = createUnit('infantry', 2, 5);
+    let state = createInitialState(BATTLE);
+    state = placeUnit(state, inf, { col: 1, row: 0 });
+    state = placeUnit(state, cav, { col: 1, row: 0 });
+    state = placeUnit(state, art, { col: 1, row: 0 });
+    state = placeUnit(state, enemy, { col: 1, row: 3 }); // same column, 3 rows away
+
+    const result = attackSquare(
+      state,
+      [{ col: 1, row: 0 }],
+      { col: 1, row: 3 },
+      [inf.id, cav.id, art.id]
+    );
+
+    expect(result.attackResult.totalDice).toBe(1); // artillery only
+  });
+
+  test('without unitIds filter: only units that can reach target participate', () => {
+    // No unitIds means all eligible units, but still filtered by reachability
+    const inf = createUnit('infantry', 1, 3);
+    const art = createUnit('artillery', 1, 2);
+    const enemy = createUnit('infantry', 2, 5);
+    let state = createInitialState(BATTLE);
+    state = placeUnit(state, inf, { col: 1, row: 0 });
+    state = placeUnit(state, art, { col: 1, row: 0 });
+    state = placeUnit(state, enemy, { col: 1, row: 3 }); // distant same-column
+
+    const result = attackSquare(
+      state,
+      [{ col: 1, row: 0 }],
+      { col: 1, row: 3 }
+    );
+
+    expect(result.attackResult.totalDice).toBe(2); // artillery only, infantry can't reach
+  });
+
+  test('multi-square attack: each unit filtered by reachability from its own square', () => {
+    // Cavalry on square A (col 0), artillery on square B (col 1)
+    // Target at (1,2): cavalry can reach adjacent, artillery fires in column
+    const cav = createUnit('cavalry', 1, 2);
+    const art = createUnit('artillery', 1, 3);
+    const enemy = createUnit('infantry', 2, 5);
+    let state = createInitialState(BATTLE);
+    state = placeUnit(state, cav, { col: 0, row: 2 }); // adjacent to target
+    state = placeUnit(state, art, { col: 1, row: 0 }); // same column as target
+    state = placeUnit(state, enemy, { col: 1, row: 2 });
+
+    const result = attackSquare(
+      state,
+      [{ col: 0, row: 2 }, { col: 1, row: 0 }],
+      { col: 1, row: 2 },
+      [cav.id, art.id]
+    );
+
+    expect(result.attackResult.totalDice).toBe(5); // both can reach: 2 + 3
+  });
+
+  test('multi-square attack: unreachable units excluded from their square', () => {
+    // Infantry on square A (col 0), artillery on square A (col 0)
+    // Target at (1,2): infantry can reach adjacent, artillery CANNOT (different column)
+    const inf = createUnit('infantry', 1, 3);
+    const art = createUnit('artillery', 1, 2);
+    const enemy = createUnit('infantry', 2, 5);
+    let state = createInitialState(BATTLE);
+    state = placeUnit(state, inf, { col: 0, row: 2 }); // adjacent to target
+    state = placeUnit(state, art, { col: 0, row: 2 }); // same square, wrong column for artillery
+    state = placeUnit(state, enemy, { col: 1, row: 2 });
+
+    const result = attackSquare(
+      state,
+      [{ col: 0, row: 2 }],
+      { col: 1, row: 2 },
+      [inf.id, art.id]
+    );
+
+    expect(result.attackResult.totalDice).toBe(3); // infantry only, artillery can't reach
+  });
+});
