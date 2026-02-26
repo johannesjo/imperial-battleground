@@ -235,8 +235,10 @@ export function render(
   ctx.fillStyle = COLORS.bg;
   ctx.fillRect(0, 0, width, height);
 
-  renderStatusBar(rc, state, 2, 0, flipped);
-  renderStatusBar(rc, state, 1, height - rc.buttonBarHeight - rc.statusBarHeight, flipped);
+  const topPlayer: 1 | 2 = flipped ? 1 : 2;
+  const bottomPlayer: 1 | 2 = flipped ? 2 : 1;
+  renderStatusBar(rc, state, topPlayer, 0, flipped);
+  renderStatusBar(rc, state, bottomPlayer, height - rc.buttonBarHeight - rc.statusBarHeight, flipped);
 
   const topReserveY = rc.gridOffsetY;
   const bottomReserveY = rc.gridOffsetY + rc.reserveHeight + rc.cellSize * GRID_ROWS;
