@@ -153,6 +153,8 @@ function emptyResult(fromSquares: Position[], target: Position): AttackResult {
     hits: 0,
     bonuses: [],
     unitDamage: [],
+    hasMelee: false,
+    hasArtillery: false,
   };
 }
 
@@ -285,6 +287,8 @@ export function attackSquare(
       hits,
       bonuses,
       unitDamage,
+      hasMelee: meleeAttackers.length > 0,
+      hasArtillery: allAttackers.some(u => u.type === 'artillery'),
     },
   };
 }

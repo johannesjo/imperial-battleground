@@ -106,6 +106,8 @@ export interface AttackResult {
   readonly hits: number;
   readonly bonuses: BonusType[];
   readonly unitDamage: Array<{ unitId: string; damage: number; destroyed: boolean }>;
+  readonly hasMelee: boolean;
+  readonly hasArtillery: boolean;
 }
 
 export type BonusType =

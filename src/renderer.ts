@@ -960,6 +960,122 @@ function renderAttackResult(
     ctx.restore();
   }
 
+  // --- Projectile animations (progress 0.0-0.25) ---
+  if (progress < 0.25) {
+    const projT = Math.min(1, progress / 0.25);
+    const targetScreen = gridCellScreen(rc, result.targetSquare, gridTop, flipped);
+    const targetCx = targetScreen.x + cellSize / 2;
+    const targetCy = targetScreen.y + cellSize / 2;
+
+    for (let si = 0; si < result.attackerSquares.length; si++) {
+      const sq = result.attackerSquares[si]!;
+      const srcScreen = gridCellScreen(rc, sq, gridTop, flipped);
+      const srcCx = srcScreen.x + cellSize / 2;
+      const srcCy = srcScreen.y + cellSize / 2;
+
+      if (result.hasArtillery) {
+        // Cannonball with parabolic arc
+        const arcHeight = Math.abs(targetCy - srcCy) * 0.5 + cellSize * 0.4;
+        const bx = srcCx + (targetCx - srcCx) * projT;
+        const by = srcCy + (targetCy - srcCy) * projT - arcHeight * Math.sin(projT * Math.PI);
+        const ballR = cellSize * 0.04;
+
+        // Trail dots
+        ctx.save();
+        for (let t = 0; t < 5; t++) {
+          const trailT = Math.max(0, projT - t * 0.04);
+          const tx = srcCx + (targetCx - srcCx) * trailT;
+          const ty = srcCy + (targetCy - srcCy) * trailT - arcHeight * Math.sin(trailT * Math.PI);
+          ctx.globalAlpha = (1 - t / 5) * 0.4;
+          ctx.fillStyle = '#888';
+          ctx.beginPath();
+          ctx.arc(tx, ty, ballR * (1 - t * 0.15), 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+
+        // Cannonball
+        ctx.save();
+        ctx.fillStyle = '#333';
+        ctx.shadowColor = '#ff8800';
+        ctx.shadowBlur = 6;
+        ctx.beginPath();
+        ctx.arc(bx, by, ballR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        // Smoke puff at origin (fading)
+        if (projT < 0.5) {
+          ctx.save();
+          const smokeR = cellSize * 0.08 * (1 + projT * 2);
+          ctx.globalAlpha = 0.3 * (1 - projT * 2);
+          ctx.fillStyle = '#999';
+          ctx.beginPath();
+          ctx.arc(srcCx, srcCy - cellSize * 0.1, smokeR, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+
+      if (result.hasMelee) {
+        // Sword slash streaks — 3 lines flying from attacker to target
+        for (let s = 0; s < 3; s++) {
+          const offset = (s - 1) * cellSize * 0.08;
+          const slashT = Math.min(1, projT * 1.3 - s * 0.08);
+          if (slashT <= 0) continue;
+
+          const sx = srcCx + (targetCx - srcCx) * slashT;
+          const sy = srcCy + offset + (targetCy - srcCy + offset) * slashT;
+          const tailT = Math.max(0, slashT - 0.15);
+          const tailX = srcCx + (targetCx - srcCx) * tailT;
+          const tailY = srcCy + offset + (targetCy - srcCy + offset) * tailT;
+
+          ctx.save();
+          ctx.globalAlpha = 0.7 * (1 - projT);
+          ctx.strokeStyle = s === 1 ? '#fff' : COLORS.textGold;
+          ctx.lineWidth = s === 1 ? 2.5 : 1.5;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(tailX, tailY);
+          ctx.lineTo(sx, sy);
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+    }
+  }
+
+  // --- Impact particles (progress 0.15-0.45) ---
+  if (progress >= 0.15 && progress < 0.45) {
+    const impactT = (progress - 0.15) / 0.3;
+    const targetScreen = gridCellScreen(rc, result.targetSquare, gridTop, flipped);
+    const impactCx = targetScreen.x + cellSize / 2;
+    const impactCy = targetScreen.y + cellSize / 2;
+    const isHit = result.hits > 0;
+    const particleCount = isHit ? 10 : 5;
+    const maxSpread = cellSize * (isHit ? 0.5 : 0.3);
+
+    // Deterministic seed from target position
+    const seed = result.targetSquare.col * 7 + result.targetSquare.row * 13;
+    for (let i = 0; i < particleCount; i++) {
+      const angle = ((seed + i * 37) % 100) / 100 * Math.PI * 2;
+      const speed = 0.5 + ((seed + i * 53) % 100) / 100 * 0.5;
+      const dist = impactT * maxSpread * speed;
+      const px = impactCx + Math.cos(angle) * dist;
+      const py = impactCy + Math.sin(angle) * dist + impactT * impactT * 15; // gravity
+      const alpha = (1 - impactT) * (isHit ? 0.8 : 0.4);
+      const size = (isHit ? 2.5 : 1.5) * (1 - impactT * 0.5);
+
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = isHit ? (i % 3 === 0 ? '#ff4400' : i % 3 === 1 ? '#ff8800' : '#ffcc00') : '#888';
+      ctx.beginPath();
+      ctx.arc(px, py, size, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
   // Result panel
   const panelAlpha = progress < 0.1
     ? progress / 0.1
