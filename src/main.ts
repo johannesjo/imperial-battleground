@@ -88,15 +88,21 @@ function recalcAttacks(): void {
   if (selectedUnitIds.length === 0) { validAttacks = []; return; }
 
   // Intersection: only targets reachable by ALL selected units
+  // Each unit is checked against the square it's actually on
   let result: Position[] | null = null;
-  for (const sq of selectedSquares) {
-    for (const uid of selectedUnitIds) {
-      const targets = getValidAttacks(state, sq, uid);
-      if (result === null) {
-        result = [...targets];
-      } else {
-        result = result.filter(r => targets.some(t => samePos(r, t)));
-      }
+  for (const uid of selectedUnitIds) {
+    // Find which square this unit is on
+    const unitSq = selectedSquares.find(sq => {
+      const square = getSquare(state, sq);
+      return square?.units.some(u => u.id === uid);
+    });
+    if (!unitSq) continue;
+
+    const targets = getValidAttacks(state, unitSq, uid);
+    if (result === null) {
+      result = [...targets];
+    } else {
+      result = result.filter(r => targets.some(t => samePos(r, t)));
     }
   }
   validAttacks = result ?? [];
