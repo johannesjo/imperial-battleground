@@ -152,6 +152,14 @@ export const BONUS_VALUES: Record<BonusType, number> = {
 export const ARTILLERY_VULNERABILITY_THRESHOLD = 4; // +4 to hit threshold (10% easier)
 export const ARTILLERY_VULNERABILITY_DAMAGE = 1;    // +1 bonus hit per artillery defender
 
+export interface SquarePreview {
+  readonly type: 'move' | 'attack';
+  readonly apCost?: number;
+  readonly hitChancePct?: number;  // 0-100 weighted average
+  readonly hasMelee?: boolean;
+  readonly hasArtillery?: boolean;
+}
+
 export interface PreviewInfo {
   readonly type: 'attack' | 'move';
   // Attack fields

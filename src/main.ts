@@ -1,5 +1,5 @@
 // src/main.ts
-import type { AttackResult, GameState, Position, PreviewInfo, Unit } from './types';
+import type { AttackResult, GameState, Position, PreviewInfo, SquarePreview, Unit } from './types';
 import { createInitialState, getSquare, getReserve, getHomeRow } from './game-state';
 import { getValidMoves, getValidGroupMoves, getValidAttacks, canDeploy } from './rules';
 import { deployUnit, moveUnit, moveUnits, attackSquare, endTurn, confirmHandoff, checkWinCondition } from './actions';
@@ -32,6 +32,7 @@ let hoveredPos: { col: number; row: number } | null = null;
 let lastAttackResult: AttackResult | null = null;
 let attackAnimStart = 0;
 const ATTACK_ANIM_DURATION = 2000;
+let squarePreviews = new Map<string, SquarePreview>();
 
 let rc = createRenderContext(canvas);
 
@@ -56,6 +57,7 @@ function clearSelection() {
   validMoves = [];
   validAttacks = [];
   deployMode = false;
+  squarePreviews = new Map();
   state = { ...state, selectedSquare: null };
 }
 
@@ -99,6 +101,78 @@ function recalcAttacks(): void {
     }
   }
   validAttacks = result;
+}
+
+function computeSquarePreviews(): void {
+  squarePreviews = new Map();
+
+  for (const m of validMoves) {
+    squarePreviews.set(`${m.col},${m.row}`, { type: 'move', apCost: 1 });
+  }
+
+  if (validAttacks.length === 0 || selectedUnitIds.length === 0) return;
+
+  // Build attackersBySquare for bonus/threshold calculation
+  const attackersBySquare = new Map<string, Unit[]>();
+  for (const sq of selectedSquares) {
+    const square = getSquare(state, sq);
+    if (!square) continue;
+    const key = `${sq.col},${sq.row}`;
+    const units = square.units.filter(u => selectedUnitIds.includes(u.id));
+    if (units.length > 0) attackersBySquare.set(key, units);
+  }
+
+  const allAttackers = [...attackersBySquare.values()].flat();
+  const bonuses = calculateBonuses(attackersBySquare);
+  const baseThreshold = calculateThreshold(bonuses);
+
+  const meleeUnits = allAttackers.filter(u => u.type !== 'artillery');
+  const artilleryUnits = allAttackers.filter(u => u.type === 'artillery');
+  const meleeDice = meleeUnits.reduce((sum, u) => sum + u.level, 0);
+  const artDice = artilleryUnits.reduce((sum, u) => sum + u.level, 0);
+  const totalDice = meleeDice + artDice;
+
+  for (const target of validAttacks) {
+    const targetSq = getSquare(state, { col: target.col, row: target.row });
+    const defenders = targetSq?.units.filter(u => u.owner !== state.currentPlayer) ?? [];
+
+    // Artillery vulnerability: +4 threshold when target has artillery defenders
+    const hasArtDefenders = defenders.some(u => u.type === 'artillery');
+    const threshold = hasArtDefenders
+      ? Math.min(baseThreshold + ARTILLERY_VULNERABILITY_THRESHOLD, 36)
+      : baseThreshold;
+
+    const meleeChance = meleeDice > 0 ? threshold / D40 : 0;
+
+    // Artillery: distance-based threshold from first artillery source square
+    let artChance = 0;
+    if (artDice > 0) {
+      for (const [key] of attackersBySquare) {
+        const hasArt = attackersBySquare.get(key)!.some(u => u.type === 'artillery');
+        if (hasArt) {
+          const artRow = parseInt(key.split(',')[1]!);
+          const distance = Math.abs(target.row - artRow);
+          artChance = getArtilleryThreshold(distance) / D40;
+          break;
+        }
+      }
+    }
+
+    // Weighted average hit chance
+    let hitChancePct: number;
+    if (totalDice > 0) {
+      hitChancePct = Math.round(((meleeDice * meleeChance + artDice * artChance) / totalDice) * 100);
+    } else {
+      hitChancePct = 0;
+    }
+
+    squarePreviews.set(`${target.col},${target.row}`, {
+      type: 'attack',
+      hitChancePct,
+      hasMelee: meleeDice > 0,
+      hasArtillery: artDice > 0,
+    });
+  }
 }
 
 function computePreview(): PreviewInfo | null {
@@ -270,6 +344,7 @@ function handleAction(action: GameAction) {
           validMoves.push(pos);
         }
       }
+      computeSquarePreviews();
       state = { ...state, selectedSquare: null };
       break;
     }
@@ -352,6 +427,7 @@ function handleAction(action: GameAction) {
 
         recalcMoves();
         recalcAttacks();
+        computeSquarePreviews();
         state = { ...state, selectedSquare: selectedSquares[0] ?? null };
       } else {
         // Tapped empty space — deselect
@@ -415,7 +491,7 @@ function draw() {
   }
   const animProgress = lastAttackResult ? attackAnimProgress() : 0;
   const preview = computePreview();
-  render(rc, state, validMoves, validAttacks, isFlipped(), selectedUnitIds, selectedSquares, lastAttackResult, animProgress, preview);
+  render(rc, state, validMoves, validAttacks, isFlipped(), selectedUnitIds, selectedSquares, lastAttackResult, animProgress, preview, squarePreviews);
 }
 
 function handleHover(pos: { col: number; row: number } | null): void {

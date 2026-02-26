@@ -1,5 +1,5 @@
 // src/renderer.ts
-import type { AttackResult, BonusType, GameState, Player, Position, PreviewInfo, Scenario, Square, Unit, UnitType } from './types';
+import type { AttackResult, BonusType, GameState, Player, Position, PreviewInfo, Scenario, Square, SquarePreview, Unit, UnitType } from './types';
 import { GRID_COLS, GRID_ROWS, BONUS_VALUES, D40 } from './types';
 
 const COLORS = {
@@ -235,7 +235,8 @@ export function render(
   selectedSquares: Position[] = [],
   attackResult: AttackResult | null = null,
   attackAnimProgress = 0,
-  preview: PreviewInfo | null = null
+  preview: PreviewInfo | null = null,
+  squarePreviews: Map<string, SquarePreview> = new Map()
 ): void {
   const { ctx, width, height } = rc;
 
@@ -252,7 +253,7 @@ export function render(
   renderReserve(rc, state, flipped ? 2 : 1, bottomReserveY, selectedUnitIds);
 
   const gridTop = rc.gridOffsetY + rc.reserveHeight;
-  renderGrid(rc, state, gridTop, validMoves, validAttacks, flipped, selectedUnitIds, selectedSquares);
+  renderGrid(rc, state, gridTop, validMoves, validAttacks, flipped, selectedUnitIds, selectedSquares, squarePreviews);
 
   if (attackResult && attackAnimProgress < 1) {
     renderAttackResult(rc, attackResult, attackAnimProgress, gridTop, flipped);
@@ -335,7 +336,8 @@ function renderGrid(
   validAttacks: Position[],
   flipped: boolean,
   selectedUnitIds: string[] = [],
-  selectedSquares: Position[] = []
+  selectedSquares: Position[] = [],
+  squarePreviews: Map<string, SquarePreview> = new Map()
 ): void {
   const { ctx, cellSize, gridOffsetX } = rc;
 
@@ -386,6 +388,24 @@ function renderGrid(
       const sq = state.grid[r]?.[c];
       if (sq && sq.units.length > 0) {
         renderUnitsInSquare(ctx, sq.units, x, y, cellSize, selectedUnitIds);
+      }
+
+      // Inline square preview text
+      const preview = squarePreviews.get(`${c},${r}`);
+      if (preview) {
+        const fontSize = Math.max(12, Math.min(16, cellSize * 0.14));
+        ctx.font = `bold ${fontSize}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+
+        if (preview.type === 'move') {
+          ctx.fillStyle = '#fff';
+          ctx.fillText('1 AP', x + cellSize / 2, y + cellSize - 4);
+        } else if (preview.type === 'attack' && preview.hitChancePct != null) {
+          const pct = preview.hitChancePct;
+          ctx.fillStyle = pct >= 40 ? '#4caf50' : pct >= 20 ? '#ffeb3b' : '#f44336';
+          ctx.fillText(`${pct}%`, x + cellSize / 2, y + cellSize - 4);
+        }
       }
     }
   }
